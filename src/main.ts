@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
-import { LoggerService } from './infrastructure/logging/logger.service';
+import { LoggerService } from '@common/services/logger.service';
 
 async function bootstrap() {
   // Crear la aplicación sin desactivar el logger por defecto inicialmente

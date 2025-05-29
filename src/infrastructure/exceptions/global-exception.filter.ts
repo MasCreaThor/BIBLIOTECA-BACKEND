@@ -1,6 +1,6 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import { Response } from 'express';
-import { LoggerService } from '../logging/logger.service';
+import { LoggerService } from '@common/services/logger.service';
 
 interface ErrorResponse {
   statusCode: number;

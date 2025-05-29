@@ -19,10 +19,14 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@domain/*": ["src/domain/*"],
-      "@application/*": ["src/application/*"],
-      "@infrastructure/*": ["src/infrastructure/*"],
-      "@interface/*": ["src/interface/*"]
+      "@controllers/*": ["src/controllers/*"],
+      "@services/*": ["src/services/*"],
+      "@repositories/*": ["src/repositories/*"],
+      "@models/*": ["src/models/*"],
+      "@adapters/*": ["src/adapters/*"],
+      "@middlewares/*": ["src/middlewares/*"],
+      "@common/*": ["src/common/*"],
+      "@config/*": ["src/config/*"]
     }
   },
   "include": ["src/**/*"],

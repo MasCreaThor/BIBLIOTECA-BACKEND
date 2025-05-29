@@ -6,72 +6,128 @@ El Sistema de Gestión de Biblioteca Escolar es una aplicación diseñada para d
 
 ### Problemática que resuelve
 
-- Control manual ineficiente de registros
-- Dificultad para rastrear préstamos
-- Deterioro de materiales sin adecuado registro
-- Búsqueda lenta de recursos
-- Falta de notificaciones para devoluciones
-- Inventario desactualizado
+- ✅ Control manual ineficiente de registros
+- ✅ Dificultad para rastrear préstamos
+- ✅ Deterioro de materiales sin adecuado registro
+- ✅ Búsqueda lenta de recursos
+- ✅ Falta de notificaciones para devoluciones
+- ✅ Inventario desactualizado
+
+## Arquitectura del Sistema
+
+El proyecto utiliza una **arquitectura en capas** con las siguientes responsabilidades:
+
+### 📁 Estructura de Capas
+
+```markdowun
+src/
+├── controllers/          # Controladores HTTP - Reciben peticiones
+├── services/            # Lógica de negocio y casos de uso
+├── repositories/        # Acceso a datos y operaciones con BD
+├── models/             # Modelos de Mongoose (esquemas)
+├── adapters/           # Integraciones con servicios externos
+├── middlewares/        # Guards, pipes y middlewares
+├── common/             # Utilidades, DTOs, interfaces compartidas
+├── config/             # Configuración de la aplicación
+└── infrastructure/     # Logging, excepciones, etc.
+```
+
+### 🔄 Flujo de Datos
+
+```markdowun
+Request → Controller → Service → Repository → Database
+                          ↓
+                     Adapter (APIs externas)
+```
 
 ## Tecnologías Utilizadas
 
-El backend está construido siguiendo los principios de Clean Architecture, utilizando:
+### Backend Core
 
-- **Framework**: NestJS (Basado en Node.js y TypeScript)
+- **Framework**: NestJS (Node.js + TypeScript)
 - **Base de Datos**: MongoDB
 - **ODM**: Mongoose
 - **Autenticación**: JWT (JSON Web Tokens)
 - **Validación**: class-validator y class-transformer
-- **API Externa**: Google Books API
-- **Seguridad**: bcrypt para cifrado de contraseñas
+
+### Seguridad
+
+- **Encriptación**: bcrypt para contraseñas
+- **Autenticación**: JWT con guards personalizados
+- **Autorización**: RBAC (Role-Based Access Control)
+
+### APIs Externas
+
+- **Google Books API**: Para obtener información bibliográfica
+
+### Herramientas de Desarrollo
+
+- **Logging**: Winston
+- **Testing**: Jest
+- **Linting**: ESLint + Prettier
+- **Documentación**: Swagger (próximamente)
 
 ## Requisitos Previos
 
-- Node.js (v16 o superior)
-- npm
-- MongoDB (instalado localmente o acceso a una instancia remota)
-- Git
+- **Node.js** (v18 o superior)
+- **npm** o **yarn**
+- **MongoDB** (v6.0 o superior)
+- **Git**
 
 ## Instalación y Configuración
 
-### 1. Clonar el Repositorio
+### 1. 📥 Clonar el Repositorio
 
 ```bash
-git clone https://github.com/MasCreaThor/BIBLIOTECA-BACKEND.git
+git clone https://github.com/tu-usuario/biblioteca-backend.git
 cd biblioteca-backend
 ```
 
-### 2. Instalar Dependencias
+### 2. 📦 Instalar Dependencias
 
 ```bash
 npm install
 ```
 
-### 3. Configurar Variables de Entorno
+### 3. ⚙️ Configurar Variables de Entorno
 
-Crea un archivo `.env` en la raíz del proyecto con la siguiente estructura:
+Copia el archivo de ejemplo y edítalo con tus valores:
 
 ```bash
-# Entorno
-NODE_ENV=development
+cp .env.example .env
+```
 
-# Servidor
-PORT=3000
+Variables principales requeridas:
 
-# MongoDB
+```bash
+# Base de datos
 MONGODB_URI=mongodb://localhost:27017/biblioteca-escolar
 
 # JWT
-JWT_SECRET=tu_clave_secreta_aqui
-JWT_EXPIRATION=1d
+JWT_SECRET=tu_clave_secreta_super_segura
 
-# Google Books API
-GOOGLE_BOOKS_API_KEY=tu_api_key_aqui
+# Google Books (opcional)
+GOOGLE_BOOKS_API_KEY=tu_api_key_de_google_books
 ```
 
-### 4. Iniciar el Servidor
+### 4. 🗄️ Configurar Base de Datos
 
-#### Modo Desarrollo
+Asegúrate de que MongoDB esté ejecutándose:
+
+```bash
+# En macOS con Homebrew
+brew services start mongodb-community
+
+# En Linux
+sudo systemctl start mongod
+
+# En Windows
+net start MongoDB
+```
+
+### 5. 🚀 Iniciar el Servidor
+
+#### Modo Desarrollo (recomendado)
 
 ```bash
 npm run start:dev
@@ -84,116 +140,225 @@ npm run build
 npm run start:prod
 ```
 
-Una vez iniciado, el servidor estará accesible en: `http://localhost:3000/api`
+El servidor estará disponible en: **http://localhost:3000/api**
 
-## Módulos Principales
+## 🏗️ Desarrollo
 
-### 1. Usuarios
+### Crear un Nuevo Módulo
 
-Gestión de usuarios del sistema (administradores, bibliotecarios, profesores, estudiantes).
+Para crear un módulo completo siguiendo la arquitectura en capas:
 
-### 2. Recursos
+```bash
+# Generar recurso completo
+nest g resource nombre-modulo
 
-Gestión del inventario de la biblioteca, incluyendo libros, juegos, mapas y otros materiales.
+# Luego organizar archivos según la arquitectura:
+# - Controller → src/controllers/
+# - Service → src/services/
+# - DTO → src/common/dto/
+# - Interfaces → src/common/interfaces/
+```
 
-### 3. Préstamos
+### Estructura de un Módulo Típico
 
-Control de préstamos, devoluciones y seguimiento de recursos prestados.
+```typescript
+// Controller (src/controllers/)
+@Controller('recursos')
+export class RecursoController {
+  constructor(private readonly recursoService: RecursoService) {}
+  
+  @Get()
+  findAll() {
+    return this.recursoService.findAll();
+  }
+}
 
-### 4. Categorías
+// Service (src/services/)
+@Injectable()
+export class RecursoService {
+  constructor(private readonly recursoRepository: RecursoRepository) {}
+  
+  findAll() {
+    return this.recursoRepository.findAll();
+  }
+}
 
-Clasificación de recursos para una mejor organización.
+// Repository (src/repositories/)
+@Injectable()
+export class RecursoRepository extends BaseRepositoryImpl<Recurso> {
+  constructor(@InjectModel(Recurso.name) recursoModel: Model<Recurso>) {
+    super(recursoModel);
+  }
+}
+```
 
-### 5. Reportes
+### Comandos Útiles
 
-Generación de informes y estadísticas sobre el uso de la biblioteca.
+```bash
+# Desarrollo
+npm run start:dev          # Modo desarrollo con watch
+npm run start:debug        # Modo debug
 
-### 6. Integración con Google Books
+# Testing
+npm run test               # Pruebas unitarias
+npm run test:watch         # Pruebas en modo watch
+npm run test:cov           # Cobertura de pruebas
+npm run test:e2e           # Pruebas end-to-end
 
-Obtención automática de información de un recurso utilizando la API de Google Books.
+# Calidad de código
+npm run lint               # Ejecutar linter
+npm run format             # Formatear código
 
-## Seguridad
+# Base de datos
+npm run db:seed            # Ejecutar seeds (cuando esté implementado)
+```
 
-El sistema implementa los siguientes principios de seguridad:
+## 🛡️ Seguridad
 
-### Confidencialidad
+### Principios Implementados
 
-- Autenticación basada en JWT
-- Encriptación de contraseñas con bcrypt
-- Control de acceso basado en roles (RBAC)
-
-### Integridad
-
-- Validación de datos en todas las entradas
-- Verificación de consistencia en operaciones críticas
-- Middleware para sanitización de entradas
-
-### Disponibilidad
-
-- Respaldos automáticos programados
-- Manejo de errores y excepciones
-- Monitoreo del sistema
-
-## Rutas de API
+- **Confidencialidad**: JWT + bcrypt
+- **Integridad**: Validación de datos + middleware
+- **Disponibilidad**: Manejo de errores + logging
 
 ### Autenticación
 
-- `POST /api/auth/login` - Iniciar sesión
-- `POST /api/auth/register` - Registrar nuevo usuario (solo administradores)
+```typescript
+// Ruta pública (sin autenticación)
+@Public()
+@Get('publico')
+metodoPublico() {}
 
-### Usuarios
+// Ruta protegida (requiere autenticación)
+@Get('privado')
+metodoPrivado() {}
 
-- `GET /api/users` - Listar todos los usuarios
-- `GET /api/users/:id` - Obtener usuario por ID
-- `POST /api/users` - Crear nuevo usuario
-- `PUT /api/users/:id` - Actualizar usuario
-- `DELETE /api/users/:id` - Eliminar usuario
-
-### Recursos
-
-- `GET /api/resources` - Listar todos los recursos
-- `GET /api/resources/:id` - Obtener recurso por ID
-- `POST /api/resources` - Crear nuevo recurso
-- `PUT /api/resources/:id` - Actualizar recurso
-- `DELETE /api/resources/:id` - Eliminar recurso
-- `GET /api/resources/search/isbn/:isbn` - Buscar por ISBN
-
-### Préstamos
-
-- `GET /api/loans` - Listar todos los préstamos
-- `GET /api/loans/:id` - Obtener préstamo por ID
-- `POST /api/loans` - Registrar nuevo préstamo
-- `PUT /api/loans/:id` - Actualizar préstamo
-- `PUT /api/loans/:id/return` - Registrar devolución
-- `GET /api/loans/overdue` - Listar préstamos vencidos
-
-### Google Books
-
-- `GET /api/google-books/search` - Buscar en Google Books
-- `GET /api/google-books/isbn/:isbn` - Buscar por ISBN
-
-## Desarrollo
-
-### Generar un nuevo recurso
-
-```bash
-nest g resource nombre-recurso
+// Ruta con roles específicos
+@Roles(UserRole.ADMIN)
+@Get('admin-only')
+metodoAdmin() {}
 ```
 
-Este comando generará un módulo completo con controlador, servicio, DTOs y tests.
+## 📊 Monitoreo y Logging
 
-## Consideraciones para Producción
+El sistema incluye logging estructurado con Winston:
 
-1. Asegurarse de cambiar las variables de entorno para producción
-2. Configurar respaldos automáticos de la base de datos
-3. Implementar HTTPS para todas las comunicaciones
-4. Revisar las políticas de CORS
-5. Configurar un sistema de logs más robusto
+```typescript
+// En cualquier servicio
+constructor(private logger: LoggerService) {
+  this.logger.setContext('NombreClase');
+}
 
-## Contacto
+// Usar logging
+this.logger.log('Operación exitosa');
+this.logger.error('Error en operación', error.stack);
+this.logger.warn('Advertencia');
+```
 
-Para cualquier consulta o sugerencia, por favor contactar al equipo de desarrollo:
+## 🧪 Testing
 
-- Email: [yadamuoz@misena.edu.co](mailto:yadamuoz@misena.edu.co) - [andersonceron2020@itp.edu.co](mailto:andersonceron2020@itp.edu.co)
+### Estructura de Pruebas
 
-- GitHub: [MasCreaThor's GitHub](https://github.com/MasCreaThor)
+```markdown
+test/
+├── unit/              # Pruebas unitarias
+├── integration/       # Pruebas de integración
+└── e2e/              # Pruebas end-to-end
+```
+
+### Ejecutar Pruebas
+
+```bash
+# Todas las pruebas
+npm test
+
+# Pruebas específicas
+npm test -- --testNamePattern="Usuario"
+
+# Con cobertura
+npm run test:cov
+```
+
+## 🚀 Despliegue
+
+### Preparación para Producción
+
+1. **Variables de Entorno**: Configurar todas las variables para producción
+2. **Base de Datos**: Configurar MongoDB Atlas o instancia productiva
+3. **SSL/TLS**: Configurar certificados HTTPS
+4. **CORS**: Configurar orígenes permitidos
+5. **Monitoring**: Configurar logging y monitoring
+
+### Docker (Próximamente)
+
+```dockerfile
+# Dockerfile para contenización
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+EXPOSE 3000
+CMD ["npm", "run", "start:prod"]
+```
+
+## 📚 Módulos del Sistema
+
+### ✅ Completados
+
+- [x] Configuración base del proyecto
+- [x] Arquitectura en capas
+- [x] Autenticación JWT
+- [x] Guards y middlewares
+- [x] Logging y manejo de errores
+
+### 🚧 En Desarrollo
+
+- [ ] Gestión de usuarios y personas
+- [ ] Gestión de inventario
+- [ ] Sistema de préstamos
+- [ ] Integración con Google Books
+- [ ] Búsqueda y filtrado
+- [ ] Informes y estadísticas
+
+### 📋 Planificado
+
+- [ ] Notificaciones automáticas
+- [ ] Dashboard administrativo
+- [ ] API documentación (Swagger)
+- [ ] Backup automático
+- [ ] Cache con Redis
+
+## 🤝 Contribución
+
+### Flujo de Desarrollo
+
+1. Fork del proyecto
+2. Crear rama feature: `git checkout -b feature/nueva-funcionalidad`
+3. Commit cambios: `git commit -m 'Agregar nueva funcionalidad'`
+4. Push a la rama: `git push origin feature/nueva-funcionalidad`
+5. Crear Pull Request
+
+### Convenciones de Código
+
+- **TypeScript**: Tipado estricto
+- **ESLint + Prettier**: Estilo de código consistente
+- **Commits**: Mensajes descriptivos
+- **Tests**: Cobertura mínima del 80%
+
+## 📞 Soporte
+
+### Contacto
+
+- **Email**: [yadmunozr22@itp.edu.co](mailto:yadmunozr22@itp.edu.co) - [andersonceron2020@itp.edu.co](mailto:andersonceron2020@itp.edu.co)
+- **GitHub**: [MasCreaThor](https://github.com/MasCreaThor)
+
+### Reportar Problemas
+
+1. Verificar que el problema no esté ya reportado
+2. Crear issue con información detallada
+3. Incluir logs relevantes
+4. Especificar pasos para reproducir
+
+---
