@@ -5,7 +5,6 @@ import { MongooseModule } from '@nestjs/mongoose';
 @Module({
   imports: [
     MongooseModule.forRootAsync({
-      // ULTRA CORREGIDO: useFactory síncrono sin Promise spread
       useFactory: (configService: ConfigService) => {
         // Obtener configuración de forma segura y síncrona
         const databaseConfig = configService.get('app.database');
@@ -20,10 +19,9 @@ import { MongooseModule } from '@nestjs/mongoose';
           options: Record<string, unknown>;
         };
 
-        // Retornar configuración sin spread de Promise
         return {
           uri,
-          ...options, // Ahora es seguro porque options no es una Promise
+          ...options,
         };
       },
       inject: [ConfigService],

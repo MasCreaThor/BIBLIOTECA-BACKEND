@@ -31,7 +31,6 @@ export class AuthGuard implements CanActivate {
 
     try {
       const payload = await this.jwtService.verifyAsync<JwtUser>(token);
-      // Adjuntar el payload del usuario a la request con tipado seguro
       (request as unknown as RequestWithUser).user = payload;
     } catch {
       throw new UnauthorizedException('Token inválido o expirado');
