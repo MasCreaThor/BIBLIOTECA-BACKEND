@@ -70,7 +70,7 @@ export class LoggerService implements NestLoggerService {
       );
     }
 
-    // Crear la instancia del logger
+    // Crea la instancia del logger
     this.logger = winston.createLogger({
       level: logLevel,
       format: winston.format.combine(...formats),

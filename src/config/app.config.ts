@@ -5,15 +5,15 @@ export default registerAs('app', () => ({
   port: parseInt(process.env.PORT || '3000', 10),
   apiPrefix: process.env.API_PREFIX || 'api',
 
-  // Configuración de la base de datos MongoDB - CORREGIDA
+  // Configuración de la base de datos MongoDB
   database: {
     uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/biblioteca-escolar',
     options: {
       // Opciones modernas de Mongoose 8.x compatibles
-      maxPoolSize: 10, // Mantiene hasta 10 conexiones en el pool
+      maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000, // Tiempo de espera para seleccionar servidor
-      socketTimeoutMS: 45000, // Timeout para operaciones de socket
-      family: 4, // Usar IPv4, omitir si no hay problemas de DNS
+      socketTimeoutMS: 45000,
+      family: 4,
     },
   },
 

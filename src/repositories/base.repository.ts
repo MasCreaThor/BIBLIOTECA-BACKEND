@@ -131,7 +131,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   }
 
   /**
-   * Operaciones en lote - Versión simplificada para evitar problemas de tipos
+   * Operaciones en lote
    */
   async bulkCreate(createDtos: Partial<T>[]): Promise<T[]> {
     // Usar insertMany pero con conversión de tipos más segura
