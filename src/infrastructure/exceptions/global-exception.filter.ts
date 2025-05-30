@@ -1,6 +1,6 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
-import { Response } from 'express';
-import { LoggerService } from '../logging/logger.service';
+import { Response, Request } from 'express';
+import { LoggerService } from '@common/services/logger.service';
 
 interface ErrorResponse {
   statusCode: number;
@@ -10,16 +10,22 @@ interface ErrorResponse {
   path: string;
 }
 
+interface HttpExceptionResponse {
+  message?: string | string[];
+  error?: string;
+  statusCode?: number;
+}
+
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   constructor(private readonly logger: LoggerService) {
     this.logger.setContext('GlobalExceptionFilter');
   }
 
-  catch(exception: Error, host: ArgumentsHost) {
+  catch(exception: Error, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest();
+    const request = ctx.getRequest<Request>();
 
     // Determinar el código de estado y los detalles del error
     const status =
@@ -32,8 +38,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const exceptionResponse = exception.getResponse();
 
-      if (typeof exceptionResponse === 'object') {
-        const exceptionResponseObj = exceptionResponse as Record<string, any>;
+      if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
+        const exceptionResponseObj = exceptionResponse as HttpExceptionResponse;
         errorMessage = exceptionResponseObj.message || errorMessage;
         errorName = exceptionResponseObj.error || errorName;
       }
@@ -52,7 +58,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (status >= 500) {
       this.logger.error(
         `${request.method} ${request.url} - ${status}: ${JSON.stringify(errorMessage)}`,
-        exception.stack,
+        exception.stack || 'No stack trace available',
       );
     } else if (status >= 400) {
       this.logger.warn(
