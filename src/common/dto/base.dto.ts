@@ -33,7 +33,7 @@ export class PaginationDto {
 export class SearchDto extends PaginationDto {
   @IsOptional()
   @IsString()
-  @Transform(({ value }) => value?.trim())
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
   search?: string;
 
   @IsOptional()
@@ -48,7 +48,7 @@ export class SearchDto extends PaginationDto {
 /**
  * DTO para respuestas de API
  */
-export class ApiResponseDto<T = any> {
+export class ApiResponseDto<T = unknown> {
   success: boolean;
   message: string;
   data?: T;
@@ -63,12 +63,20 @@ export class ApiResponseDto<T = any> {
     this.error = error;
   }
 
-  static success<T>(data: T, message: string = 'Operación exitosa', statusCode: number = 200) {
+  static success<T>(
+    data: T,
+    message: string = 'Operación exitosa',
+    statusCode: number = 200,
+  ): ApiResponseDto<T> {
     return new ApiResponseDto<T>(true, message, statusCode, data);
   }
 
-  static error(error: string, message: string = 'Error en la operación', statusCode: number = 500) {
-    return new ApiResponseDto(false, message, statusCode, undefined, error);
+  static error(
+    error: string,
+    message: string = 'Error en la operación',
+    statusCode: number = 500,
+  ): ApiResponseDto<never> {
+    return new ApiResponseDto<never>(false, message, statusCode, undefined, error);
   }
 }
 
@@ -118,6 +126,6 @@ export class BaseEntityDto {
  */
 export class ObjectIdDto {
   @IsString()
-  @Transform(({ value }) => value?.toString())
+  @Transform(({ value }: { value: unknown }) => value?.toString() ?? '')
   id!: string;
 }

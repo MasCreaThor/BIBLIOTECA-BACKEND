@@ -1,14 +1,13 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
 
 // Configuración
 import appConfig from '@config/app.config';
 import { DatabaseModule } from '@config/database.module';
 
-// Infraestructura - mantener rutas existentes temporalmente
+// Infraestructura
 import { GlobalExceptionFilter } from './infrastructure/exceptions/global-exception.filter';
 import { LoggerService } from '@common/services/logger.service';
 
@@ -28,10 +27,10 @@ import { RolesGuard } from '@middlewares/roles.guard';
     // Base de datos
     DatabaseModule,
 
-    // JWT
+    // JWT - Función síncrona corregida
     JwtModule.registerAsync({
       global: true,
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('app.jwt.secret'),
         signOptions: {
           expiresIn: configService.get<string>('app.jwt.expiresIn'),

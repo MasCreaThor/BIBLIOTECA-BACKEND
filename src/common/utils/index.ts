@@ -195,17 +195,17 @@ export class ArrayUtils {
 }
 
 /**
- * Utilidades para objetos
+ * Utilidades para objetos - TIPADO CORREGIDO
  */
 export class ObjectUtils {
   /**
    * Remueve propiedades undefined de un objeto
    */
-  static removeUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
+  static removeUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
     const cleaned: Partial<T> = {};
     for (const [key, value] of Object.entries(obj)) {
       if (value !== undefined) {
-        cleaned[key as keyof T] = value;
+        (cleaned as Record<string, unknown>)[key] = value;
       }
     }
     return cleaned;
@@ -215,6 +215,6 @@ export class ObjectUtils {
    * Hace una copia profunda de un objeto
    */
   static deepClone<T>(obj: T): T {
-    return JSON.parse(JSON.stringify(obj));
+    return JSON.parse(JSON.stringify(obj)) as T;
   }
 }

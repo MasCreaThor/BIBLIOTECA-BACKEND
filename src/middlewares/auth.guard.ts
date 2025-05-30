@@ -2,7 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
-import { IS_PUBLIC_KEY } from '@common/decorators/auth.decorators';
+import { IS_PUBLIC_KEY, JwtUser, RequestWithUser } from '@common/decorators/auth.decorators';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -30,10 +30,10 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync(token);
-      // Adjuntar el payload del usuario a la request
-      request['user'] = payload;
-    } catch (error) {
+      const payload = await this.jwtService.verifyAsync<JwtUser>(token);
+      // Adjuntar el payload del usuario a la request con tipado seguro
+      (request as unknown as RequestWithUser).user = payload;
+    } catch {
       throw new UnauthorizedException('Token inválido o expirado');
     }
 

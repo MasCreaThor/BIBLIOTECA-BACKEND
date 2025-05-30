@@ -26,9 +26,14 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
     if (limit) query = query.limit(limit);
     if (skip) query = query.skip(skip);
     if (sort) query = query.sort(sort);
+
+    // ULTRA CORREGIDO: Populate sin forEach para evitar Promise en void return
     if (populate) {
       if (Array.isArray(populate)) {
-        populate.forEach((path) => (query = query.populate(path)));
+        // Usar for...of en lugar de forEach para evitar Promise issues
+        for (const path of populate) {
+          query = query.populate(path);
+        }
       } else {
         query = query.populate(populate);
       }
@@ -169,7 +174,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   /**
    * Obtener documentos únicos por campo
    */
-  async findDistinct(field: string, filter: Partial<T> = {}): Promise<any[]> {
+  async findDistinct(field: string, filter: Partial<T> = {}): Promise<unknown[]> {
     return this.model.distinct(field, filter as FilterQuery<T>).exec();
   }
 

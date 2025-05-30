@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '@common/decorators/auth.decorators';
+import { ROLES_KEY, RequestWithUser } from '@common/decorators/auth.decorators';
 
 export enum UserRole {
   ADMIN = 'admin',
@@ -22,10 +22,15 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<RequestWithUser>();
+    const user = request.user;
+
+    if (!user) {
+      throw new ForbiddenException('Usuario no autenticado');
+    }
 
     // Verificar si el usuario tiene alguno de los roles requeridos
-    const hasRole = requiredRoles.some((role) => user?.role === role);
+    const hasRole = requiredRoles.some((role) => user.role === role);
 
     if (!hasRole) {
       throw new ForbiddenException('No tienes permisos suficientes para acceder a este recurso');

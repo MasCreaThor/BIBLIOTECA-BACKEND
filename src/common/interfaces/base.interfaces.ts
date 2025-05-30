@@ -1,4 +1,4 @@
-import { Document, FilterQuery } from 'mongoose';
+import { Document } from 'mongoose';
 
 /**
  * Interfaz base para todos los documentos de MongoDB
@@ -58,7 +58,7 @@ export interface PaginationParams {
 /**
  * Interfaz para respuestas de API estándar
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   message: string;
   data?: T;
@@ -91,7 +91,7 @@ export interface AppConfig {
   apiPrefix: string;
   database: {
     uri: string;
-    options: Record<string, any>;
+    options: Record<string, unknown>;
   };
   jwt: {
     secret: string;
