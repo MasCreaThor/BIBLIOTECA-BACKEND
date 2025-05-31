@@ -10,9 +10,6 @@ import { Document, Types } from 'mongoose';
   collection: 'people',
 })
 export class Person extends Document {
-  @Prop()
-  _id!: Types.ObjectId;
-
   @Prop({
     required: true,
     trim: true,

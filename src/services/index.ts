@@ -13,6 +13,7 @@ export { UserService } from './user.service';
 // Servicios de personas
 export { PersonService } from './person.service';
 
+export { BootstrapService } from './bootstrap.service';
 // Próximos servicios
 // export { ResourceService } from './resource.service';
 // export { LoanService } from './loan.service';

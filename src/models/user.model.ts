@@ -10,9 +10,6 @@ import { Document, Types } from 'mongoose';
   collection: 'users',
 })
 export class User extends Document {
-  @Prop()
-  _id!: Types.ObjectId;
-
   @Prop({
     required: true,
     unique: true,

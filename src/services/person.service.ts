@@ -398,7 +398,6 @@ export class PersonService {
     }
 
     return {
-      // CORREGIDO: Conversion segura de _id
       _id: (person._id as any).toString(),
       firstName: person.firstName,
       lastName: person.lastName,
@@ -418,7 +417,6 @@ export class PersonService {
    */
   private mapPersonTypeToResponseDto(personType: PersonTypeDocument): PersonTypeResponseDto {
     return {
-      // CORREGIDO: Conversion segura de _id
       _id: (personType._id as any).toString(),
       name: personType.name,
       description: personType.description,

@@ -3,6 +3,7 @@ import { BaseRepository, BaseDocument, QueryOptions } from '@common/interfaces/b
 
 /**
  * Implementación base para repositorios con operaciones CRUD comunes
+ * Compatible con tipos nativos de Mongoose - Versión corregida
  */
 export abstract class BaseRepositoryImpl<T extends BaseDocument> implements BaseRepository<T> {
   constructor(protected readonly model: Model<T>) {}
@@ -12,7 +13,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
    */
   async create(createDto: Partial<T>): Promise<T> {
     const createdDocument = new this.model(createDto);
-    return createdDocument.save() as Promise<T>;
+    return createdDocument.save();
   }
 
   /**
@@ -37,21 +38,21 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
       }
     }
 
-    return query.exec() as Promise<T[]>;
+    return query.exec();
   }
 
   /**
    * Encontrar un documento por ID
    */
   async findById(id: string): Promise<T | null> {
-    return this.model.findById(id).exec() as Promise<T | null>;
+    return this.model.findById(id).exec();
   }
 
   /**
    * Encontrar un documento por filtro
    */
   async findOne(filter: Record<string, any>): Promise<T | null> {
-    return this.model.findOne(filter as FilterQuery<T>).exec() as Promise<T | null>;
+    return this.model.findOne(filter as FilterQuery<T>).exec();
   }
 
   /**
@@ -60,7 +61,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   async update(id: string, updateDto: Partial<T>): Promise<T | null> {
     return this.model
       .findByIdAndUpdate(id, updateDto as UpdateQuery<T>, { new: true, runValidators: true })
-      .exec() as Promise<T | null>;
+      .exec();
   }
 
   /**
@@ -129,15 +130,27 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   }
 
   /**
-   * Operaciones en lote
+   * Operaciones en lote - CORREGIDO
    */
   async bulkCreate(createDtos: Partial<T>[]): Promise<T[]> {
-    // Usar insertMany pero con conversión de tipos más segura
-    const result = await this.model.insertMany(createDtos);
-    // Convertir cada documento individualmente con verificación de seguridad
-    return result
-      .filter((doc) => doc != null)
-      .map((doc) => (doc.toObject ? doc.toObject() : doc) as T);
+    try {
+      const result = await this.model.insertMany(createDtos);
+      // Conversión segura que maneja los tipos complejos de Mongoose
+      return result.map(doc => {
+        if (doc && typeof doc.toObject === 'function') {
+          return doc.toObject() as T;
+        }
+        return doc as unknown as T;
+      });
+    } catch (error) {
+      // Fallback: crear documentos uno por uno si insertMany falla
+      const createdDocuments: T[] = [];
+      for (const dto of createDtos) {
+        const created = await this.create(dto);
+        createdDocuments.push(created);
+      }
+      return createdDocuments;
+    }
   }
 
   /**
@@ -146,7 +159,6 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   async bulkUpdate(
     updates: Array<{ filter: Record<string, any>; update: Partial<T> }>,
   ): Promise<void> {
-    // Realizar actualizaciones una por una para evitar problemas de tipos complejos
     for (const { filter, update } of updates) {
       await this.model.updateMany(filter as FilterQuery<T>, update as UpdateQuery<T>).exec();
     }
@@ -202,7 +214,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
         runValidators: true,
         ...options,
       })
-      .exec() as Promise<T | null>;
+      .exec();
   }
 
   /**
@@ -226,7 +238,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
     return this.model
       .findOne(filter as FilterQuery<T>)
       .sort({ createdAt: -1 })
-      .exec() as Promise<T | null>;
+      .exec();
   }
 
   /**

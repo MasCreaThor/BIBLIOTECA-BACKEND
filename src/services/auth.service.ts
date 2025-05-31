@@ -53,11 +53,11 @@ export class AuthService {
         throw new UnauthorizedException('Credenciales inválidas');
       }
 
-      // Actualizar último login - CORREGIDO: Asegurar que _id es string
-      const userId = (user._id as any).toString();
+      // Actualizar último login - CORREGIDO: Simplificado
+      const userId = (user as any)._id.toString();
       await this.userRepository.updateLastLogin(userId);
 
-      // Generar JWT - CORREGIDO: Asegurar conversión a string
+      // Generar JWT - CORREGIDO: Simplificado
       const payload: JwtUser = {
         sub: userId,
         id: userId,

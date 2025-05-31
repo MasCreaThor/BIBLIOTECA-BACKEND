@@ -1,10 +1,11 @@
-import { Document, Types } from 'mongoose';
+import { Document } from 'mongoose';
 
 /**
  * Interfaz base para todos los documentos de MongoDB
+ * Compatible con tipos nativos de Mongoose
  */
 export interface BaseDocument extends Document {
-  _id: Types.ObjectId;
+  // Mongoose maneja _id automáticamente, no lo redefinimos
   createdAt: Date;
   updatedAt: Date;
 }

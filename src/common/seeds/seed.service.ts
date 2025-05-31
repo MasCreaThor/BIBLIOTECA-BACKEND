@@ -85,24 +85,38 @@ export class SeedService {
     const hasAdmin = await this.userRepository.hasAdminUser();
 
     if (!hasAdmin) {
-      const adminEmail = this.configService.get<string>('ADMIN_EMAIL') || 'admin@biblioteca.edu.co';
-      const adminPassword = this.configService.get<string>('ADMIN_PASSWORD') || 'Admin123!';
+      const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+      const adminPassword = this.configService.get<string>('ADMIN_PASSWORD');
 
-      const hashedPassword = await this.passwordService.hashPassword(adminPassword);
+      // Solo crear admin si están configuradas las variables de entorno
+      if (adminEmail && adminPassword) {
+        try {
+          // Importar BootstrapService dinámicamente para evitar dependencias circulares
+          const { BootstrapService } = await import('@services/bootstrap.service');
+          const bootstrapService = new BootstrapService(
+            this.userRepository,
+            this.personTypeRepository,
+            this.passwordService,
+            this.configService,
+            this.logger
+          );
 
-      const adminData = {
-        email: adminEmail,
-        password: hashedPassword,
-        role: 'admin' as const,
-        active: true,
-      };
+          await bootstrapService.createFirstAdmin({
+            email: adminEmail,
+            password: adminPassword
+          });
 
-      await this.userRepository.create(adminData);
-
-      this.logger.log(`Admin user created with email: ${adminEmail}`);
-      this.logger.warn(
-        `Default admin password: ${adminPassword} - Please change this immediately!`,
-      );
+          this.logger.log(`Admin user created with email: ${adminEmail}`);
+          this.logger.warn('Please change the default admin password immediately!');
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+          this.logger.error(`Error creating admin user: ${errorMessage}`);
+          this.logger.warn('Admin user creation skipped due to validation errors');
+        }
+      } else {
+        this.logger.log('Admin credentials not configured in environment variables');
+        this.logger.log('Use: npm run admin:init to create the first administrator');
+      }
     } else {
       this.logger.debug('Admin user already exists');
     }
@@ -124,8 +138,11 @@ export class SeedService {
     this.logger.log('Seeding development data...');
 
     try {
-      await this.seedTestUsers();
-      await this.seedTestPeople();
+      // Por ahora solo seedear usuarios de prueba si es necesario
+      // await this.seedTestUsers();
+      
+      // Comentado temporalmente - no necesitamos datos de personas de prueba
+      // await this.seedTestPeople();
 
       this.logger.log('Development data seeding completed');
     } catch (error) {
@@ -167,7 +184,7 @@ export class SeedService {
    * Sembrar personas de prueba
    */
   private async seedTestPeople(): Promise<void> {
-    const studentType = await this.personTypeRepository.getStudentType();
+    const studentType = await this.personTypeRepository.getStudentType() as { _id: Types.ObjectId };
     const teacherType = await this.personTypeRepository.getTeacherType();
 
     if (!studentType || !teacherType) {
@@ -181,26 +198,8 @@ export class SeedService {
         lastName: 'Pérez',
         documentNumber: '1000123456',
         grade: '10A',
-        personTypeId: studentType._id,
-      },
-      {
-        firstName: 'María',
-        lastName: 'González',
-        documentNumber: '1000654321',
-        grade: '11B',
-        personTypeId: studentType._id,
-      },
-      {
-        firstName: 'Carlos',
-        lastName: 'Rodríguez',
-        documentNumber: '12345678',
-        personTypeId: teacherType._id,
-      },
-      {
-        firstName: 'Ana',
-        lastName: 'Martínez',
-        documentNumber: '87654321',
-        personTypeId: teacherType._id,
+        personTypeId: studentType._id.toString(),
+        active: true,
       },
     ];
 
@@ -210,10 +209,7 @@ export class SeedService {
         : null;
 
       if (!existing) {
-        await this.personRepository.create({
-          ...personData,
-          active: true,
-        });
+        await this.personRepository.create({ ...personData, personTypeId: new Types.ObjectId(personData.personTypeId) });
 
         this.logger.log(`Created test person: ${personData.firstName} ${personData.lastName}`);
       }
