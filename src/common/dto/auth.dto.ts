@@ -3,7 +3,6 @@ import { Transform } from 'class-transformer';
 
 /**
  * DTOs para autenticación
- * Ruta: src/common/dto/auth.dto.ts
  */
 
 export class LoginDto {

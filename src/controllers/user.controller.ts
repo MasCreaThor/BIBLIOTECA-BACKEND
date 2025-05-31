@@ -20,7 +20,6 @@ import { ValidationUtils, MongoUtils } from '@common/utils';
 
 /**
  * Controlador para gestión de usuarios del sistema (solo administradores)
- * Ruta: src/controllers/user.controller.ts
  */
 
 @Controller('users')

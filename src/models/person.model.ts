@@ -3,7 +3,6 @@ import { Document, Types } from 'mongoose';
 
 /**
  * Modelo para personas registradas (estudiantes y docentes)
- * Ruta: src/models/person.model.ts
  */
 
 @Schema({

@@ -5,7 +5,6 @@ import { LoggerService } from '@common/services/logger.service';
 
 /**
  * Servicio para manejo de contraseñas
- * Ruta: src/services/password.service.ts
  */
 
 @Injectable()

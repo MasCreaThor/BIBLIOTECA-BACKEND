@@ -6,7 +6,6 @@ import { BaseRepositoryImpl } from './base.repository';
 
 /**
  * Repositorio para personas (estudiantes y docentes)
- * Ruta: src/repositories/person.repository.ts
  */
 
 @Injectable()

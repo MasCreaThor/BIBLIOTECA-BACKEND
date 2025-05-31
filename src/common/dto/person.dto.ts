@@ -12,7 +12,6 @@ import { SearchDto } from './base.dto';
 
 /**
  * DTOs para personas (estudiantes y docentes)
- * Ruta: src/common/dto/person.dto.ts
  */
 
 export class CreatePersonDto {
