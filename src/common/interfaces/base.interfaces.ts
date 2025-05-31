@@ -1,10 +1,10 @@
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 
 /**
  * Interfaz base para todos los documentos de MongoDB
  */
 export interface BaseDocument extends Document {
-  _id: string;
+  _id: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -14,12 +14,12 @@ export interface BaseDocument extends Document {
  */
 export interface BaseRepository<T extends BaseDocument> {
   create(createDto: Partial<T>): Promise<T>;
-  findAll(filter?: Partial<T>, options?: QueryOptions): Promise<T[]>;
+  findAll(filter?: Record<string, any>, options?: QueryOptions): Promise<T[]>;
   findById(id: string): Promise<T | null>;
-  findOne(filter: Partial<T>): Promise<T | null>;
+  findOne(filter: Record<string, any>): Promise<T | null>;
   update(id: string, updateDto: Partial<T>): Promise<T | null>;
   delete(id: string): Promise<boolean>;
-  count(filter?: Partial<T>): Promise<number>;
+  count(filter?: Record<string, any>): Promise<number>;
 }
 
 /**

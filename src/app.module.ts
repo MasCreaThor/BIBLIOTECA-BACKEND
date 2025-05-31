@@ -15,6 +15,12 @@ import { LoggerService } from '@common/services/logger.service';
 import { AuthGuard } from '@middlewares/auth.guard';
 import { RolesGuard } from '@middlewares/roles.guard';
 
+// Módulos de funcionalidad
+import { AuthModule } from './modules/auth.module';
+import { UserModule } from './modules/user.module';
+import { PersonModule } from './modules/person.module';
+import { SeedModule } from '@common/seeds/seed.module';
+
 @Module({
   imports: [
     // Configuración global
@@ -39,11 +45,16 @@ import { RolesGuard } from '@middlewares/roles.guard';
       inject: [ConfigService],
     }),
 
-    // Aquí se agregarán los módulos de funcionalidad
-    // UserModule,
+    // Módulos de funcionalidad - EPIC-2
+    AuthModule,
+    UserModule,
+    PersonModule,
+    SeedModule,
+
+    // Próximos módulos - EPIC-3+
     // ResourceModule,
     // LoanModule,
-    // etc.
+    // ReportModule,
   ],
   controllers: [],
   providers: [

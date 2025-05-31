@@ -3,9 +3,16 @@
  * Exportar todos los servicios aquí para facilitar las importaciones
  */
 
-// export { UserService } from './user.service';
+// Servicios de autenticación
+export { AuthService } from './auth.service';
+export { PasswordService } from './password.service';
+
+// Servicios de usuarios
+export { UserService } from './user.service';
+
+// Servicios de personas
+export { PersonService } from './person.service';
+
+// Próximos servicios
 // export { ResourceService } from './resource.service';
 // export { LoanService } from './loan.service';
-
-// Placeholder para mantener el archivo
-export {};
