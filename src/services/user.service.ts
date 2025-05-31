@@ -15,7 +15,6 @@ import { MongoUtils } from '@common/utils';
 
 /**
  * Servicio para gestión de usuarios del sistema
- * Ruta: src/services/user.service.ts
  */
 
 @Injectable()

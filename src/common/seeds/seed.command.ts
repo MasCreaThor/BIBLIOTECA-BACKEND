@@ -5,7 +5,6 @@ import { LoggerService } from '@common/services/logger.service';
 
 /**
  * Comando para ejecutar semillas de datos
- * Ruta: src/common/seeds/seed.command.ts
  *
  * Uso:
  * npm run db:seed - Sembrar datos básicos

@@ -8,7 +8,6 @@ import { JwtUser } from '@common/decorators/auth.decorators';
 
 /**
  * Controlador de autenticación
- * Ruta: src/controllers/auth.controller.ts
  */
 
 @Controller('auth')

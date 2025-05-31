@@ -27,7 +27,6 @@ import { ValidationUtils, MongoUtils } from '@common/utils';
 
 /**
  * Controlador para gestión de personas (estudiantes y docentes)
- * Ruta: src/controllers/person.controller.ts
  */
 
 @Controller('people')

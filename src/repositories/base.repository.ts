@@ -27,10 +27,8 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
     if (skip) query = query.skip(skip);
     if (sort) query = query.sort(sort);
 
-    // ULTRA CORREGIDO: Populate sin forEach para evitar Promise en void return
     if (populate) {
       if (Array.isArray(populate)) {
-        // Usar for...of en lugar de forEach para evitar Promise issues
         for (const path of populate) {
           query = query.populate(path);
         }

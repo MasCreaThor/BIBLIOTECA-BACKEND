@@ -3,7 +3,6 @@ import { Document, Types } from 'mongoose';
 
 /**
  * Modelo para usuarios del sistema (administrador y bibliotecario)
- * Ruta: src/models/user.model.ts
  */
 
 @Schema({

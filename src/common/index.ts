@@ -1,6 +1,5 @@
 /**
  * Barrel export para utilidades comunes
- * Exportar todas las utilidades comunes aquí
  */
 
 export * from './interfaces/base.interfaces';

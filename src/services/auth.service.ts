@@ -11,7 +11,6 @@ import { UserRole } from '@middlewares/roles.guard';
 
 /**
  * Servicio de autenticación
- * Ruta: src/services/auth.service.ts
  */
 
 @Injectable()
@@ -215,8 +214,6 @@ export class AuthService {
       return true;
     }
 
-    // CORREGIDO: Si no es admin, debe ser librarian
-    // No necesitamos verificar de nuevo, solo asignar directamente
     const userRole = UserRole.LIBRARIAN;
 
     return userRole === requiredRole;

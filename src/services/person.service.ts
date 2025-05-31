@@ -23,7 +23,6 @@ import { MongoUtils } from '@common/utils';
 
 /**
  * Servicio para gestión de personas (estudiantes y docentes)
- * Ruta: src/services/person.service.ts
  */
 
 @Injectable()
