@@ -18,7 +18,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   /**
    * Encontrar todos los documentos con filtros opcionales
    */
-  async findAll(filter: Partial<T> = {}, options: QueryOptions = {}): Promise<T[]> {
+  async findAll(filter: Record<string, any> = {}, options: QueryOptions = {}): Promise<T[]> {
     const { limit, skip, sort, populate } = options;
 
     let query = this.model.find(filter as FilterQuery<T>);
@@ -52,7 +52,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   /**
    * Encontrar un documento por filtro
    */
-  async findOne(filter: Partial<T>): Promise<T | null> {
+  async findOne(filter: Record<string, any>): Promise<T | null> {
     return this.model.findOne(filter as FilterQuery<T>).exec() as Promise<T | null>;
   }
 
@@ -76,14 +76,14 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   /**
    * Contar documentos que coincidan con el filtro
    */
-  async count(filter: Partial<T> = {}): Promise<number> {
+  async count(filter: Record<string, any> = {}): Promise<number> {
     return this.model.countDocuments(filter as FilterQuery<T>).exec();
   }
 
   /**
    * Verificar si existe un documento
    */
-  async exists(filter: Partial<T>): Promise<boolean> {
+  async exists(filter: Record<string, any>): Promise<boolean> {
     const count = await this.count(filter);
     return count > 0;
   }
@@ -92,7 +92,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
    * Encontrar documentos con paginación
    */
   async findWithPagination(
-    filter: Partial<T> = {},
+    filter: Record<string, any> = {},
     page: number = 1,
     limit: number = 10,
     sort: Record<string, 1 | -1> = { createdAt: -1 },
@@ -117,7 +117,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   protected async searchByText(
     searchTerm: string,
     searchFields: string[],
-    additionalFilter: Partial<T> = {},
+    additionalFilter: Record<string, any> = {},
     options: QueryOptions = {},
   ): Promise<T[]> {
     const searchQuery = {
@@ -127,7 +127,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
       ...additionalFilter,
     } as FilterQuery<T>;
 
-    return this.findAll(searchQuery as Partial<T>, options);
+    return this.findAll(searchQuery as Record<string, any>, options);
   }
 
   /**
@@ -145,7 +145,9 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   /**
    * Actualización en lote simplificada
    */
-  async bulkUpdate(updates: Array<{ filter: Partial<T>; update: Partial<T> }>): Promise<void> {
+  async bulkUpdate(
+    updates: Array<{ filter: Record<string, any>; update: Partial<T> }>,
+  ): Promise<void> {
     // Realizar actualizaciones una por una para evitar problemas de tipos complejos
     for (const { filter, update } of updates) {
       await this.model.updateMany(filter as FilterQuery<T>, update as UpdateQuery<T>).exec();
@@ -155,7 +157,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   /**
    * Eliminación en lote
    */
-  async bulkDelete(filter: Partial<T>): Promise<number> {
+  async bulkDelete(filter: Record<string, any>): Promise<number> {
     const result = await this.model.deleteMany(filter as FilterQuery<T>).exec();
     return result.deletedCount || 0;
   }
@@ -174,14 +176,14 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   /**
    * Obtener documentos únicos por campo
    */
-  async findDistinct(field: string, filter: Partial<T> = {}): Promise<unknown[]> {
+  async findDistinct(field: string, filter: Record<string, any> = {}): Promise<unknown[]> {
     return this.model.distinct(field, filter as FilterQuery<T>).exec();
   }
 
   /**
    * Actualizar múltiples documentos
    */
-  async updateMany(filter: Partial<T>, update: Partial<T>): Promise<number> {
+  async updateMany(filter: Record<string, any>, update: Partial<T>): Promise<number> {
     const result = await this.model
       .updateMany(filter as FilterQuery<T>, update as UpdateQuery<T>)
       .exec();
@@ -192,7 +194,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
    * Encontrar y actualizar con opciones avanzadas
    */
   async findOneAndUpdate(
-    filter: Partial<T>,
+    filter: Record<string, any>,
     update: Partial<T>,
     options: MongooseQueryOptions = {},
   ): Promise<T | null> {
@@ -222,7 +224,7 @@ export abstract class BaseRepositoryImpl<T extends BaseDocument> implements Base
   /**
    * Obtener el último documento creado
    */
-  async findLatest(filter: Partial<T> = {}): Promise<T | null> {
+  async findLatest(filter: Record<string, any> = {}): Promise<T | null> {
     return this.model
       .findOne(filter as FilterQuery<T>)
       .sort({ createdAt: -1 })
