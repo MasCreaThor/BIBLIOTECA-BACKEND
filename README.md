@@ -194,6 +194,14 @@ export class RecursoRepository extends BaseRepositoryImpl<Recurso> {
 ### Comandos Útiles
 
 ```bash
+#Verificar y Probar
+npm run build
+
+# Verificar estado
+npm run admin:status
+
+# Crear administrador
+npm run admin:init
 # Desarrollo
 npm run start:dev          # Modo desarrollo con watch
 npm run start:debug        # Modo debug
@@ -209,7 +217,8 @@ npm run lint               # Ejecutar linter
 npm run format             # Formatear código
 
 # Base de datos
-npm run db:seed            # Ejecutar seeds (cuando esté implementado)
+npm run db:seed
+
 ```
 
 ## 🛡️ Seguridad
