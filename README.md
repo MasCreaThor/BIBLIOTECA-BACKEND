@@ -65,7 +65,6 @@ Request → Controller → Service → Repository → Database
 - **Logging**: Winston
 - **Testing**: Jest
 - **Linting**: ESLint + Prettier
-- **Documentación**: Swagger (próximamente)
 
 ## Requisitos Previos
 
@@ -79,7 +78,7 @@ Request → Controller → Service → Repository → Database
 ### 1. 📥 Clonar el Repositorio
 
 ```bash
-git clone https://github.com/tu-usuario/biblioteca-backend.git
+git clone https://github.com/MasCreaThor/BIBLIOTECA-BACKEND.git
 cd biblioteca-backend
 ```
 
@@ -140,7 +139,7 @@ npm run build
 npm run start:prod
 ```
 
-El servidor estará disponible en: **http://localhost:3000/api**
+El servidor estará disponible en: **<http://localhost:3000/api>**
 
 ## 🏗️ Desarrollo
 
@@ -261,9 +260,8 @@ this.logger.warn('Advertencia');
 
 ```markdown
 test/
-├── unit/              # Pruebas unitarias
-├── integration/       # Pruebas de integración
-└── e2e/              # Pruebas end-to-end
+└── unit/              # Pruebas unitarias
+
 ```
 
 ### Ejecutar Pruebas
@@ -277,30 +275,6 @@ npm test -- --testNamePattern="Usuario"
 
 # Con cobertura
 npm run test:cov
-```
-
-## 🚀 Despliegue
-
-### Preparación para Producción
-
-1. **Variables de Entorno**: Configurar todas las variables para producción
-2. **Base de Datos**: Configurar MongoDB Atlas o instancia productiva
-3. **SSL/TLS**: Configurar certificados HTTPS
-4. **CORS**: Configurar orígenes permitidos
-5. **Monitoring**: Configurar logging y monitoring
-
-### Docker (Próximamente)
-
-```dockerfile
-# Dockerfile para contenización
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-EXPOSE 3000
-CMD ["npm", "run", "start:prod"]
 ```
 
 ## 📚 Módulos del Sistema
@@ -330,16 +304,6 @@ CMD ["npm", "run", "start:prod"]
 - [ ] Backup automático
 - [ ] Cache con Redis
 
-## 🤝 Contribución
-
-### Flujo de Desarrollo
-
-1. Fork del proyecto
-2. Crear rama feature: `git checkout -b feature/nueva-funcionalidad`
-3. Commit cambios: `git commit -m 'Agregar nueva funcionalidad'`
-4. Push a la rama: `git push origin feature/nueva-funcionalidad`
-5. Crear Pull Request
-
 ### Convenciones de Código
 
 - **TypeScript**: Tipado estricto
@@ -353,12 +317,3 @@ CMD ["npm", "run", "start:prod"]
 
 - **Email**: [yadmunozr22@itp.edu.co](mailto:yadmunozr22@itp.edu.co) - [andersonceron2020@itp.edu.co](mailto:andersonceron2020@itp.edu.co)
 - **GitHub**: [MasCreaThor](https://github.com/MasCreaThor)
-
-### Reportar Problemas
-
-1. Verificar que el problema no esté ya reportado
-2. Crear issue con información detallada
-3. Incluir logs relevantes
-4. Especificar pasos para reproducir
-
----
