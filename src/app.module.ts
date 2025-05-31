@@ -7,19 +7,18 @@ import { JwtModule } from '@nestjs/jwt';
 import appConfig from '@config/app.config';
 import { DatabaseModule } from '@config/database.module';
 
-// Infraestructura
-import { GlobalExceptionFilter } from './infrastructure/exceptions/global-exception.filter';
-import { LoggerService } from '@common/services/logger.service';
+// Módulo compartido GLOBAL
+import { SharedModule } from '@shared/shared.module';
 
-// Guards
-import { AuthGuard } from '@middlewares/auth.guard';
-import { RolesGuard } from '@middlewares/roles.guard';
+// Infraestructura compartida
+import { GlobalExceptionFilter } from '@shared/exceptions';
+import { AuthGuard, RolesGuard } from '@shared/guards';
 
 // Módulos de funcionalidad
-import { AuthModule } from './modules/auth.module';
-import { UserModule } from './modules/user.module';
-import { PersonModule } from './modules/person.module';
-import { SeedModule } from '@common/seeds/seed.module';
+import { UserModule } from '@modules/user';
+import { AuthModule } from '@modules/auth';
+import { PersonModule } from '@modules/person';
+import { SeedModule } from '@database/seeds/seed.module';
 
 @Module({
   imports: [
@@ -33,7 +32,7 @@ import { SeedModule } from '@common/seeds/seed.module';
     // Base de datos
     DatabaseModule,
 
-    // JWT - Función síncrona corregida
+    // JWT
     JwtModule.registerAsync({
       global: true,
       useFactory: (configService: ConfigService) => ({
@@ -45,22 +44,17 @@ import { SeedModule } from '@common/seeds/seed.module';
       inject: [ConfigService],
     }),
 
-    // Módulos de funcionalidad - EPIC-2
-    AuthModule,
+    // MÓDULO COMPARTIDO GLOBAL - Debe ir ANTES que otros módulos
+    SharedModule,
+
+    // Módulos de funcionalidad
     UserModule,
+    AuthModule,
     PersonModule,
     SeedModule,
-
-    // Próximos módulos - EPIC-3+
-    // ResourceModule,
-    // LoanModule,
-    // ReportModule,
   ],
   controllers: [],
   providers: [
-    // Logger service
-    LoggerService,
-
     // Filtro global de excepciones
     {
       provide: APP_FILTER,

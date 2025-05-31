@@ -24,7 +24,9 @@
   "db:verify": "ts-node -r tsconfig-paths/register src/common/seeds/seed.command.ts verify",
   "fix:structure": "node scripts/verify-architecture.js",
   "check:types": "tsc --noEmit",
-  "fix:imports": "npm run build || echo 'Errores de compilación encontrados'"
+  "fix:imports": "npm run build || echo 'Errores de compilación encontrados'",
+  "admin:init": "ts-node -r tsconfig-paths/register src/common/seeds/admin-bootstrap.command.ts",
+    "admin:status": "ts-node -r tsconfig-paths/register src/common/seeds/admin-status.command.ts"
 },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
