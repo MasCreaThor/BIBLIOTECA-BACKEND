@@ -1,24 +1,26 @@
+// src/app.module.ts
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
 // Configuración
-import appConfig from '@config/app.config';
-import { DatabaseModule } from '@config/database.module';
+import appConfig from './config/app.config';
+import { DatabaseModule } from './config/database.module';
 
 // Módulo compartido GLOBAL
-import { SharedModule } from '@shared/shared.module';
+import { SharedModule } from './shared/shared.module';
 
 // Infraestructura compartida
-import { GlobalExceptionFilter } from '@shared/exceptions';
-import { AuthGuard, RolesGuard } from '@shared/guards';
+import { GlobalExceptionFilter } from './shared/exceptions';
+import { AuthGuard, RolesGuard } from './shared/guards';
 
 // Módulos de funcionalidad
-import { UserModule } from '@modules/user';
-import { AuthModule } from '@modules/auth';
-import { PersonModule } from '@modules/person';
-import { SeedModule } from '@database/seeds/seed.module';
+import { UserModule } from './modules/user';
+import { AuthModule } from './modules/auth';
+import { PersonModule } from './modules/person';
+import { ResourceModule } from './modules/resource';
+import { SeedModule } from './database/seeds/seed.module';
 
 @Module({
   imports: [
@@ -26,7 +28,10 @@ import { SeedModule } from '@database/seeds/seed.module';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [appConfig],
-      envFilePath: `.env.${process.env.NODE_ENV || 'development'}`,
+      envFilePath: [
+        `.env.${process.env.NODE_ENV || 'development'}`,
+        '.env'
+      ],
     }),
 
     // Base de datos
@@ -51,6 +56,7 @@ import { SeedModule } from '@database/seeds/seed.module';
     UserModule,
     AuthModule,
     PersonModule,
+    ResourceModule, // ✅ Módulo de recursos agregado
     SeedModule,
   ],
   controllers: [],

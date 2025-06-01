@@ -1,8 +1,11 @@
+
+// src/database/seeds/seed.service.ts
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserRepository } from '@modules/user/repositories';
 import { PersonRepository } from '@modules/person/repositories';
 import { PersonTypeRepository } from '@modules/person/repositories';
+import { ResourceSeedService } from '@modules/resource/seeds/resource-seed.service';
 import { PasswordService } from '@shared/services';
 import { LoggerService } from '@shared/services/logger.service';
 import { Types } from 'mongoose';
