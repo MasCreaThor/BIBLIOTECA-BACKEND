@@ -52,11 +52,10 @@ import { SeedModule } from './database/seeds/seed.module';
     // MÓDULO COMPARTIDO GLOBAL - Debe ir ANTES que otros módulos
     SharedModule,
 
-    // Módulos de funcionalidad
     UserModule,
     AuthModule,
     PersonModule,
-    ResourceModule, // ✅ Módulo de recursos agregado
+    ResourceModule,
     SeedModule,
   ],
   controllers: [],
