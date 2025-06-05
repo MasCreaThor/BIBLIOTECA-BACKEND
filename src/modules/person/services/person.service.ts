@@ -1,3 +1,4 @@
+// src/modules/person/services/person.service.ts
 import {
   Injectable,
   ConflictException,
@@ -131,11 +132,14 @@ export class PersonService {
       filters.active = status === 'active';
     }
 
+    // Buscar personType por nombre si se proporciona
     if (personType) {
       const personTypeDoc = await this.personTypeRepository.findByName(personType);
       if (personTypeDoc) {
-        // CORREGIDO: Conversion segura de _id
         filters.personType = (personTypeDoc._id as any).toString();
+      } else {
+        // Si no encuentra el tipo, retornar resultados vacíos
+        return new PaginatedResponseDto([], 0, page, limit);
       }
     }
 
@@ -151,10 +155,14 @@ export class PersonService {
       filters.search = search;
     }
 
-    const result = await this.personRepository.findWithFilters(filters, page, limit);
-    const mappedData = result.data.map((person) => this.mapToResponseDto(person));
-
-    return new PaginatedResponseDto(mappedData, result.total, result.page, limit);
+    try {
+      const result = await this.personRepository.findWithFilters(filters, page, limit);
+      const mappedData = result.data.map((person: PersonDocument) => this.mapToResponseDto(person));
+      return new PaginatedResponseDto(mappedData, result.total, result.page, limit);
+    } catch (error) {
+      this.logger.error('Error in findAll with filters:', error);
+      throw new BadRequestException('Error al buscar personas');
+    }
   }
 
   /**
@@ -198,7 +206,6 @@ export class PersonService {
         const existingDoc = await this.personRepository.findByDocumentNumber(
           updatePersonDto.documentNumber,
         );
-        // CORREGIDO: Conversion segura de _id
         if (existingDoc && (existingDoc._id as any).toString() !== id) {
           throw new ConflictException('Ya existe una persona con este número de documento');
         }
@@ -388,7 +395,7 @@ export class PersonService {
     let personType: any = undefined;
 
     // Verificar si personType está poblado
-    if (person.populated('personTypeId')) {
+    if (person.populated('personTypeId') || (person.personTypeId && typeof person.personTypeId === 'object')) {
       const populatedType = person.personTypeId as any;
       personType = {
         _id: populatedType._id?.toString() || populatedType.toString(),
