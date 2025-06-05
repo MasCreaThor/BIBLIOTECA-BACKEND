@@ -1,3 +1,4 @@
+// src/modules/person/repositories/person.repository.ts
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery } from 'mongoose';
@@ -18,7 +19,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
    * Buscar persona por número de documento
    */
   async findByDocumentNumber(documentNumber: string): Promise<PersonDocument | null> {
-    return this.personModel.findOne({ documentNumber, active: true }).populate('personType').exec();
+    return this.personModel.findOne({ documentNumber, active: true }).populate('personTypeId').exec();
   }
 
   /**
@@ -27,7 +28,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
   async findByPersonType(personTypeId: string): Promise<PersonDocument[]> {
     return this.personModel
       .find({ personTypeId: new Types.ObjectId(personTypeId), active: true })
-      .populate('personType')
+      .populate('personTypeId')
       .sort({ firstName: 1, lastName: 1 })
       .exec();
   }
@@ -38,7 +39,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
   async findByGrade(grade: string): Promise<PersonDocument[]> {
     return this.personModel
       .find({ grade, active: true })
-      .populate('personType')
+      .populate('personTypeId')
       .sort({ firstName: 1, lastName: 1 })
       .exec();
   }
@@ -49,7 +50,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
   async findActive(): Promise<PersonDocument[]> {
     return this.personModel
       .find({ active: true })
-      .populate('personType')
+      .populate('personTypeId')
       .sort({ firstName: 1, lastName: 1 })
       .exec();
   }
@@ -74,7 +75,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
 
     const data = await this.personModel
       .find(filter as FilterQuery<PersonDocument>)
-      .populate('personType')
+      .populate('personTypeId')
       .sort(sort)
       .skip(skip)
       .limit(limit)
@@ -142,7 +143,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
 
     const data = await this.personModel
       .find(query as FilterQuery<PersonDocument>)
-      .populate('personType')
+      .populate('personTypeId')
       .sort({ firstName: 1, lastName: 1 })
       .skip(skip)
       .limit(limit)
@@ -166,7 +167,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
         lastName: { $regex: lastName, $options: 'i' },
         active: true,
       })
-      .populate('personType')
+      .populate('personTypeId')
       .exec();
   }
 
@@ -187,7 +188,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
   }
 
   /**
-   * Obtener estadísticas de personas
+   * Obtener estadísticas de personas - VERSIÓN CORREGIDA
    */
   async getStatistics(): Promise<{
     total: number;
@@ -195,44 +196,122 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
     teachers: number;
     byGrade: Array<{ grade: string; count: number }>;
   }> {
-    const [total, students, teachers, byGrade] = await Promise.all([
-      this.personModel.countDocuments({ active: true }).exec(),
-      this.personModel
-        .countDocuments({
-          active: true,
-          personTypeId: { $exists: true },
-        })
-        .populate({
-          path: 'personTypeId',
-          match: { name: 'student' },
-        })
-        .exec(),
-      this.personModel
-        .countDocuments({
-          active: true,
-          personTypeId: { $exists: true },
-        })
-        .populate({
-          path: 'personTypeId',
-          match: { name: 'teacher' },
-        })
-        .exec(),
-      this.personModel
-        .aggregate([
-          { $match: { active: true, grade: { $exists: true, $ne: null } } },
+    try {
+      // Usar aggregation pipeline para obtener estadísticas correctas
+      const [statisticsResult] = await this.personModel.aggregate([
+        {
+          $match: { active: true }
+        },
+        {
+          $lookup: {
+            from: 'person_types', // Nombre de la colección de tipos de persona
+            localField: 'personTypeId',
+            foreignField: '_id',
+            as: 'personType'
+          }
+        },
+        {
+          $unwind: '$personType'
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            students: {
+              $sum: {
+                $cond: [{ $eq: ['$personType.name', 'student'] }, 1, 0]
+              }
+            },
+            teachers: {
+              $sum: {
+                $cond: [{ $eq: ['$personType.name', 'teacher'] }, 1, 0]
+              }
+            }
+          }
+        }
+      ]).exec();
+
+      // Obtener estadísticas por grado
+      const byGradeResult = await this.personModel.aggregate([
+        {
+          $match: { 
+            active: true, 
+            grade: { 
+              $exists: true, 
+              $nin: [null, '']
+            }
+          }
+        },
+        {
+          $group: { 
+            _id: '$grade', 
+            count: { $sum: 1 } 
+          }
+        },
+        {
+          $project: { 
+            grade: '$_id', 
+            count: 1, 
+            _id: 0 
+          }
+        },
+        {
+          $sort: { grade: 1 }
+        }
+      ]).exec();
+
+      // Si no hay resultados, devolver valores por defecto
+      const stats = statisticsResult || { total: 0, students: 0, teachers: 0 };
+
+      return {
+        total: stats.total || 0,
+        students: stats.students || 0,
+        teachers: stats.teachers || 0,
+        byGrade: byGradeResult || [],
+      };
+
+    } catch (error) {
+      console.error('Error al obtener estadísticas de personas:', error);
+      
+      // Fallback: método alternativo más simple
+      const [total, byGrade] = await Promise.all([
+        this.personModel.countDocuments({ active: true }).exec(),
+        this.personModel.aggregate([
+          { $match: { active: true, grade: { $exists: true, $nin: [null, ''] } } },
           { $group: { _id: '$grade', count: { $sum: 1 } } },
           { $project: { grade: '$_id', count: 1, _id: 0 } },
           { $sort: { grade: 1 } },
-        ])
-        .exec(),
-    ]);
+        ]).exec(),
+      ]);
 
-    return {
-      total,
-      students,
-      teachers,
-      byGrade,
-    };
+      // Para el fallback, obtener conteos por tipo de manera más simple
+      const peopleWithTypes = await this.personModel
+        .find({ active: true })
+        .populate('personTypeId')
+        .select('personTypeId')
+        .exec();
+
+      let students = 0;
+      let teachers = 0;
+
+      peopleWithTypes.forEach(person => {
+        if (person.personTypeId && typeof person.personTypeId === 'object') {
+          const personType = person.personTypeId as any;
+          if (personType.name === 'student') {
+            students++;
+          } else if (personType.name === 'teacher') {
+            teachers++;
+          }
+        }
+      });
+
+      return {
+        total,
+        students,
+        teachers,
+        byGrade: byGrade || [],
+      };
+    }
   }
 
   /**
