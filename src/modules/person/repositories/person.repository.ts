@@ -18,7 +18,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
    * Buscar persona por número de documento
    */
   async findByDocumentNumber(documentNumber: string): Promise<PersonDocument | null> {
-    return this.personModel.findOne({ documentNumber, active: true }).populate('personType').exec();
+    return this.personModel.findOne({ documentNumber, active: true }).populate('personTypeId').exec();
   }
 
   /**
@@ -27,7 +27,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
   async findByPersonType(personTypeId: string): Promise<PersonDocument[]> {
     return this.personModel
       .find({ personTypeId: new Types.ObjectId(personTypeId), active: true })
-      .populate('personType')
+      .populate('personTypeId')
       .sort({ firstName: 1, lastName: 1 })
       .exec();
   }
@@ -38,7 +38,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
   async findByGrade(grade: string): Promise<PersonDocument[]> {
     return this.personModel
       .find({ grade, active: true })
-      .populate('personType')
+      .populate('personTypeId')
       .sort({ firstName: 1, lastName: 1 })
       .exec();
   }
@@ -49,7 +49,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
   async findActive(): Promise<PersonDocument[]> {
     return this.personModel
       .find({ active: true })
-      .populate('personType')
+      .populate('personTypeId')
       .sort({ firstName: 1, lastName: 1 })
       .exec();
   }
@@ -74,7 +74,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
 
     const data = await this.personModel
       .find(filter as FilterQuery<PersonDocument>)
-      .populate('personType')
+      .populate('personTypeId')
       .sort(sort)
       .skip(skip)
       .limit(limit)
@@ -142,7 +142,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
 
     const data = await this.personModel
       .find(query as FilterQuery<PersonDocument>)
-      .populate('personType')
+      .populate('personTypeId')
       .sort({ firstName: 1, lastName: 1 })
       .skip(skip)
       .limit(limit)
@@ -166,7 +166,7 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
         lastName: { $regex: lastName, $options: 'i' },
         active: true,
       })
-      .populate('personType')
+      .populate('personTypeId')
       .exec();
   }
 
