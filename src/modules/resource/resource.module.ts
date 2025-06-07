@@ -12,6 +12,7 @@ import {
   AuthorController,
   PublisherController,
   LocationController,
+  ResourceTypeController,
   
   // Integration controllers
   GoogleBooksController,
@@ -28,6 +29,7 @@ import {
   AuthorService,
   PublisherService,
   LocationService,
+  ResourceTypeService,
   
   // Integration services
   GoogleBooksService,
@@ -104,6 +106,7 @@ import { LoggerService } from '@shared/services';
     AuthorController,
     PublisherController,
     LocationController,
+    ResourceTypeController,
     
     // Integration controllers
     GoogleBooksController,
@@ -117,6 +120,7 @@ import { LoggerService } from '@shared/services';
     AuthorService,
     PublisherService,
     LocationService,
+    ResourceTypeService, // NUEVO
     
     // Integration services
     GoogleBooksService,
@@ -146,6 +150,7 @@ import { LoggerService } from '@shared/services';
     AuthorService,
     PublisherService,
     LocationService,
+    ResourceTypeService,
     
     // Integration services
     GoogleBooksService,

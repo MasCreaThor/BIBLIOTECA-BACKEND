@@ -6,4 +6,4 @@ export * from './core';
 export * from './management';
 
 // Integration services
-export * from './integration'
+export * from './integration';

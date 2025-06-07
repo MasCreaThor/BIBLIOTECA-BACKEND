@@ -16,5 +16,11 @@ export * from './publisher/publisher.dto';
 // Location DTOs
 export * from './location/location.dto';
 
+// Resource Type DTOs
+export * from './resource-type/resource-type.dto';
+
+// Google Books DTOs
+export * from './google-books/google-books.dto';
+
 // Google Books DTOs
 export * from './google-books/google-books.dto';
