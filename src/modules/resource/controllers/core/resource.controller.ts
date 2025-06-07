@@ -1,4 +1,4 @@
-// src/modules/resource/controllers/resource.controller.ts
+// src/modules/resource/controllers/core/resource.controller.ts
 import {
     Controller,
     Get,
@@ -11,14 +11,12 @@ import {
     HttpCode,
     HttpStatus,
   } from '@nestjs/common';
-  import { ResourceService } from '@modules/resource/services';
+  import { ResourceService } from '@modules/resource/services/core/resource.service';
   import { LoggerService } from '@shared/services/logger.service';
   import {
     CreateResourceDto,
     UpdateResourceDto,
     ResourceResponseDto,
-    ResourceSearchDto,
-    ResourceFromGoogleBooksDto,
   } from '@modules/resource/dto';
   import { ApiResponseDto, PaginatedResponseDto } from '@shared/dto/base.dto';
   import { Roles } from '@shared/decorators/auth.decorators';
@@ -26,11 +24,11 @@ import {
   import { ValidationUtils, MongoUtils } from '@shared/utils';
   
   /**
-   * Controlador para gestión de recursos de la biblioteca
+   * Controlador simplificado para gestión de recursos de la biblioteca
    */
   
   @Controller('resources')
-  @Roles(UserRole.LIBRARIAN, UserRole.ADMIN) // Bibliotecarios y administradores
+  @Roles(UserRole.LIBRARIAN, UserRole.ADMIN)
   export class ResourceController {
     constructor(
       private readonly resourceService: ResourceService,
@@ -50,37 +48,10 @@ import {
     ): Promise<ApiResponseDto<ResourceResponseDto>> {
       try {
         this.logger.log(`Creating resource: ${createResourceDto.title}`);
-  
         const resource = await this.resourceService.create(createResourceDto);
-  
         return ApiResponseDto.success(resource, 'Recurso creado exitosamente', HttpStatus.CREATED);
       } catch (error) {
         this.logger.error(`Error creating resource: ${createResourceDto.title}`, error);
-        throw error;
-      }
-    }
-  
-    /**
-     * Crear recurso desde Google Books
-     * POST /api/resources/from-google-books
-     */
-    @Post('from-google-books')
-    @HttpCode(HttpStatus.CREATED)
-    async createFromGoogleBooks(
-      @Body() createDto: ResourceFromGoogleBooksDto,
-    ): Promise<ApiResponseDto<ResourceResponseDto>> {
-      try {
-        this.logger.log(`Creating resource from Google Books: ${createDto.googleBooksId}`);
-  
-        const resource = await this.resourceService.createFromGoogleBooks(createDto);
-  
-        return ApiResponseDto.success(
-          resource,
-          'Recurso creado desde Google Books exitosamente',
-          HttpStatus.CREATED,
-        );
-      } catch (error) {
-        this.logger.error(`Error creating resource from Google Books: ${createDto.googleBooksId}`, error);
         throw error;
       }
     }
@@ -94,64 +65,40 @@ import {
       @Query('page') page: string = '1',
       @Query('limit') limit: string = '20',
       @Query('search') search?: string,
-      @Query('resourceType') resourceType?: 'book' | 'game' | 'map' | 'bible',
       @Query('categoryId') categoryId?: string,
       @Query('locationId') locationId?: string,
-      @Query('stateId') stateId?: string,
       @Query('availability') availability?: 'available' | 'borrowed',
-      @Query('isbn') isbn?: string,
-      @Query('author') author?: string,
-      @Query('publisher') publisher?: string,
-      @Query('sortBy') sortBy?: string,
-      @Query('sortOrder') sortOrder?: 'asc' | 'desc',
+      @Query('authorId') authorId?: string,
     ): Promise<ApiResponseDto<PaginatedResponseDto<ResourceResponseDto>>> {
       try {
-        const searchDto: ResourceSearchDto = {
-          page: parseInt(page, 10) || 1,
-          limit: Math.min(parseInt(limit, 10) || 20, 100), // Máximo 100
-          sortBy: sortBy || 'title',
-          sortOrder: sortOrder || 'asc',
-        };
+        const pageNum = parseInt(page, 10) || 1;
+        const limitNum = Math.min(parseInt(limit, 10) || 20, 100);
+  
+        const filters: any = {};
   
         if (search && ValidationUtils.isNotEmpty(search)) {
-          searchDto.search = search.trim();
-        }
-  
-        if (resourceType && ['book', 'game', 'map', 'bible'].includes(resourceType)) {
-          searchDto.resourceType = resourceType;
+          filters.search = search.trim();
         }
   
         if (categoryId && MongoUtils.isValidObjectId(categoryId)) {
-          searchDto.categoryId = categoryId.trim();
+          filters.categoryId = categoryId.trim();
         }
   
         if (locationId && MongoUtils.isValidObjectId(locationId)) {
-          searchDto.locationId = locationId.trim();
-        }
-  
-        if (stateId && MongoUtils.isValidObjectId(stateId)) {
-          searchDto.stateId = stateId.trim();
+          filters.locationId = locationId.trim();
         }
   
         if (availability && ['available', 'borrowed'].includes(availability)) {
-          searchDto.availability = availability;
+          filters.availability = availability;
         }
   
-        if (isbn && ValidationUtils.isNotEmpty(isbn)) {
-          searchDto.isbn = isbn.trim();
+        if (authorId && MongoUtils.isValidObjectId(authorId)) {
+          filters.authorId = authorId.trim();
         }
   
-        if (author && ValidationUtils.isNotEmpty(author)) {
-          searchDto.author = author.trim();
-        }
+        this.logger.debug('Finding resources with filters:', filters);
   
-        if (publisher && ValidationUtils.isNotEmpty(publisher)) {
-          searchDto.publisher = publisher.trim();
-        }
-  
-        this.logger.debug('Finding resources with filters:', searchDto);
-  
-        const result = await this.resourceService.findAll(searchDto);
+        const result = await this.resourceService.findAll(filters, pageNum, limitNum);
   
         return ApiResponseDto.success(result, 'Recursos obtenidos exitosamente', HttpStatus.OK);
       } catch (error) {
@@ -173,7 +120,6 @@ import {
         }
   
         this.logger.debug(`Finding resource by ID: ${id}`);
-  
         const resource = await this.resourceService.findById(id);
   
         return ApiResponseDto.success(resource, 'Recurso obtenido exitosamente', HttpStatus.OK);
@@ -196,7 +142,6 @@ import {
         }
   
         this.logger.debug(`Finding resource by ISBN: ${isbn}`);
-  
         const resource = await this.resourceService.findByISBN(isbn);
   
         return ApiResponseDto.success(resource, 'Recurso obtenido exitosamente', HttpStatus.OK);
@@ -222,7 +167,6 @@ import {
         }
   
         this.logger.log(`Updating resource: ${id}`);
-  
         const resource = await this.resourceService.update(id, updateResourceDto);
   
         return ApiResponseDto.success(resource, 'Recurso actualizado exitosamente', HttpStatus.OK);
@@ -248,7 +192,6 @@ import {
         }
   
         this.logger.log(`Updating resource availability: ${id} - Available: ${body.available}`);
-  
         const resource = await this.resourceService.updateAvailability(id, body.available);
   
         return ApiResponseDto.success(
@@ -276,91 +219,11 @@ import {
         }
   
         this.logger.log(`Deleting resource permanently: ${id}`);
-  
         await this.resourceService.delete(id);
   
         return ApiResponseDto.success(null, 'Recurso eliminado exitosamente', HttpStatus.OK);
       } catch (error) {
         this.logger.error(`Error deleting resource: ${id}`, error);
-        throw error;
-      }
-    }
-  
-    /**
-     * Obtener recursos más prestados
-     * GET /api/resources/stats/most-borrowed
-     */
-    @Get('stats/most-borrowed')
-    async getMostBorrowedResources(
-      @Query('limit') limit: string = '10',
-    ): Promise<ApiResponseDto<ResourceResponseDto[]>> {
-      try {
-        const limitNum = Math.min(parseInt(limit, 10) || 10, 50); // Máximo 50
-  
-        this.logger.debug(`Getting most borrowed resources (limit: ${limitNum})`);
-  
-        const resources = await this.resourceService.getMostBorrowedResources(limitNum);
-  
-        return ApiResponseDto.success(
-          resources,
-          'Recursos más prestados obtenidos exitosamente',
-          HttpStatus.OK,
-        );
-      } catch (error) {
-        this.logger.error('Error getting most borrowed resources', error);
-        throw error;
-      }
-    }
-  
-    /**
-     * Obtener recursos menos prestados
-     * GET /api/resources/stats/least-borrowed
-     */
-    @Get('stats/least-borrowed')
-    async getLeastBorrowedResources(
-      @Query('limit') limit: string = '10',
-    ): Promise<ApiResponseDto<ResourceResponseDto[]>> {
-      try {
-        const limitNum = Math.min(parseInt(limit, 10) || 10, 50); // Máximo 50
-  
-        this.logger.debug(`Getting least borrowed resources (limit: ${limitNum})`);
-  
-        const resources = await this.resourceService.getLeastBorrowedResources(limitNum);
-  
-        return ApiResponseDto.success(
-          resources,
-          'Recursos menos prestados obtenidos exitosamente',
-          HttpStatus.OK,
-        );
-      } catch (error) {
-        this.logger.error('Error getting least borrowed resources', error);
-        throw error;
-      }
-    }
-  
-    /**
-     * Obtener estadísticas de recursos
-     * GET /api/resources/stats/summary
-     */
-    @Get('stats/summary')
-    async getStatistics(): Promise<
-      ApiResponseDto<{
-        total: number;
-        available: number;
-        borrowed: number;
-        byType: Array<{ type: string; count: number }>;
-        byCategory: Array<{ category: string; count: number }>;
-        byState: Array<{ state: string; count: number }>;
-      }>
-    > {
-      try {
-        this.logger.debug('Getting resource statistics');
-  
-        const stats = await this.resourceService.getStatistics();
-  
-        return ApiResponseDto.success(stats, 'Estadísticas obtenidas exitosamente', HttpStatus.OK);
-      } catch (error) {
-        this.logger.error('Error getting resource statistics', error);
         throw error;
       }
     }

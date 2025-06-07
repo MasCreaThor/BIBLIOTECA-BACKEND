@@ -2,33 +2,45 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
-// Controladores
+// Controladores organizados por responsabilidad
 import {
+  // Core controllers
   ResourceController,
+  
+  // Management controllers
   CategoryController,
-  LocationController,
   AuthorController,
   PublisherController,
+  LocationController,
+  
+  // Integration controllers
   GoogleBooksController,
+  GoogleBooksResourceController,
 } from './controllers';
 
-// Servicios
+// Servicios organizados por responsabilidad
 import {
+  // Core services
   ResourceService,
+  
+  // Management services
   CategoryService,
-  LocationService,
   AuthorService,
   PublisherService,
+  LocationService,
+  
+  // Integration services
   GoogleBooksService,
+  GoogleBooksResourceService,
 } from './services';
 
-// Repositorios
+// Repositorios simplificados
 import {
   ResourceRepository,
   CategoryRepository,
-  LocationRepository,
   AuthorRepository,
   PublisherRepository,
+  LocationRepository,
   ResourceTypeRepository,
   ResourceStateRepository,
 } from './repositories';
@@ -58,68 +70,93 @@ import { GoogleBooksAdapter } from '@adapters/google-books.adapter';
 import { LoggerService } from '@shared/services';
 
 /**
- * Módulo para gestión de recursos de la biblioteca
+ * Módulo refactorizado para gestión de recursos de la biblioteca
+ * 
+ * Organización:
+ * - Core: Funcionalidad principal de recursos
+ * - Management: Gestión de entidades auxiliares (categorías, autores, etc.)
+ * - Integration: Integraciones externas (Google Books)
  */
 
 @Module({
   imports: [
     MongooseModule.forFeature([
+      // Modelo principal
       { name: Resource.name, schema: ResourceSchema },
+      
+      // Modelos de configuración
       { name: ResourceType.name, schema: ResourceTypeSchema },
+      { name: ResourceState.name, schema: ResourceStateSchema },
+      
+      // Modelos de gestión
       { name: Category.name, schema: CategorySchema },
       { name: Author.name, schema: AuthorSchema },
       { name: Publisher.name, schema: PublisherSchema },
-      { name: ResourceState.name, schema: ResourceStateSchema },
       { name: Location.name, schema: LocationSchema },
     ]),
   ],
   controllers: [
+    // Core controllers
     ResourceController,
+    
+    // Management controllers
     CategoryController,
-    LocationController,
     AuthorController,
     PublisherController,
+    LocationController,
+    
+    // Integration controllers
     GoogleBooksController,
   ],
   providers: [
-    // Servicios
+    // Core services
     ResourceService,
+    
+    // Management services
     CategoryService,
-    LocationService,
     AuthorService,
     PublisherService,
+    LocationService,
+    
+    // Integration services
     GoogleBooksService,
+    GoogleBooksResourceService,
 
-    // Repositorios
+    // Repositories
     ResourceRepository,
     CategoryRepository,
-    LocationRepository,
     AuthorRepository,
     PublisherRepository,
+    LocationRepository,
     ResourceTypeRepository,
     ResourceStateRepository,
 
     // Adapters
     GoogleBooksAdapter,
 
-    // Servicios compartidos
+    // Shared services
     LoggerService,
   ],
   exports: [
-    // Servicios (para otros módulos)
+    // Core services (para otros módulos como loans)
     ResourceService,
+    
+    // Management services (útiles para otros módulos)
     CategoryService,
-    LocationService,
     AuthorService,
     PublisherService,
+    LocationService,
+    
+    // Integration services
     GoogleBooksService,
+    GoogleBooksResourceService,
 
-    // Repositorios (para otros módulos)
+    // Repositories (para casos específicos)
     ResourceRepository,
     CategoryRepository,
-    LocationRepository,
     AuthorRepository,
     PublisherRepository,
+    LocationRepository,
     ResourceTypeRepository,
     ResourceStateRepository,
 
