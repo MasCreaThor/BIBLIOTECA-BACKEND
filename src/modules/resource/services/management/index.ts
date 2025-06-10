@@ -4,3 +4,4 @@ export { AuthorService } from './author.service';
 export { PublisherService } from './publisher.service';
 export { LocationService } from './location.service';
 export { ResourceTypeService } from './resource-type.service';
+export { ResourceStateService } from './resource-state.service';

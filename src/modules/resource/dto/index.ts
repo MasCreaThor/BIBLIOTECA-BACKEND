@@ -24,3 +24,6 @@ export * from './google-books/google-books.dto';
 
 // Google Books DTOs
 export * from './google-books/google-books.dto';
+
+// Resource State DTOs 
+export * from './resource-state/resource-state.dto';
