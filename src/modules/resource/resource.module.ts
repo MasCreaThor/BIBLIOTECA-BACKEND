@@ -1,4 +1,4 @@
-// src/modules/resource/resource.module.ts - ACTUALIZADO
+// src/modules/resource/resource.module.ts - CORREGIDO
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
@@ -104,6 +104,7 @@ import { LoggerService } from '@shared/services';
     
     // Integration controllers
     GoogleBooksController,
+    GoogleBooksResourceController,  // ← AGREGADO AQUÍ
   ],
   providers: [
     // Core services
