@@ -3,11 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, FilterQuery } from 'mongoose';
 import { Resource, ResourceDocument } from '@modules/resource/models';
-import { BaseRepositoryImpl } from '../../../shared/repositories';
+import { BaseRepositoryImpl } from '@shared/repositories';
 
-/**
- * Repositorio para recursos de la biblioteca
- */
 
 @Injectable()
 export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
@@ -21,11 +18,11 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
   async findByTitle(title: string): Promise<ResourceDocument[]> {
     return this.resourceModel
       .find({ 
-        $text: { $search: title },
+        title: { $regex: title, $options: 'i' },
         available: true 
       })
       .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .sort({ score: { $meta: 'textScore' } })
+      .sort({ title: 1 })
       .exec();
   }
 
@@ -36,27 +33,6 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
     return this.resourceModel
       .findOne({ isbn })
       .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .exec();
-  }
-
-  /**
-   * Buscar recursos por Google Books ID
-   */
-  async findByGoogleBooksId(googleBooksId: string): Promise<ResourceDocument | null> {
-    return this.resourceModel
-      .findOne({ googleBooksId })
-      .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .exec();
-  }
-
-  /**
-   * Buscar recursos por tipo
-   */
-  async findByType(typeId: string): Promise<ResourceDocument[]> {
-    return this.resourceModel
-      .find({ typeId: new Types.ObjectId(typeId) })
-      .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .sort({ title: 1 })
       .exec();
   }
 
@@ -83,39 +59,6 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
   }
 
   /**
-   * Buscar recursos por editorial
-   */
-  async findByPublisher(publisherId: string): Promise<ResourceDocument[]> {
-    return this.resourceModel
-      .find({ publisherId: new Types.ObjectId(publisherId) })
-      .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .sort({ title: 1 })
-      .exec();
-  }
-
-  /**
-   * Buscar recursos por ubicación
-   */
-  async findByLocation(locationId: string): Promise<ResourceDocument[]> {
-    return this.resourceModel
-      .find({ locationId: new Types.ObjectId(locationId) })
-      .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .sort({ title: 1 })
-      .exec();
-  }
-
-  /**
-   * Buscar recursos por estado
-   */
-  async findByState(stateId: string): Promise<ResourceDocument[]> {
-    return this.resourceModel
-      .find({ stateId: new Types.ObjectId(stateId) })
-      .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .sort({ title: 1 })
-      .exec();
-  }
-
-  /**
    * Buscar recursos disponibles
    */
   async findAvailable(): Promise<ResourceDocument[]> {
@@ -127,35 +70,18 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
   }
 
   /**
-   * Buscar recursos prestados
+   * Buscar con filtros básicos y paginación
    */
-  async findBorrowed(): Promise<ResourceDocument[]> {
-    return this.resourceModel
-      .find({ available: false })
-      .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .sort({ title: 1 })
-      .exec();
-  }
-
-  /**
-   * Buscar con filtros avanzados y paginación
-   */
-  async findWithAdvancedFilters(
+  async findWithFilters(
     filters: {
       search?: string;
-      resourceType?: string;
       categoryId?: string;
       locationId?: string;
-      stateId?: string;
       availability?: 'available' | 'borrowed';
-      isbn?: string;
       authorId?: string;
-      publisherId?: string;
     },
     page: number = 1,
     limit: number = 20,
-    sortBy: string = 'title',
-    sortOrder: 'asc' | 'desc' = 'asc',
   ): Promise<{
     data: ResourceDocument[];
     total: number;
@@ -166,17 +92,10 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
 
     // Filtro por búsqueda de texto
     if (filters.search) {
-      query.$text = { $search: filters.search };
-    }
-
-    // Filtro por tipo de recurso
-    if (filters.resourceType) {
-      // Necesitamos hacer una consulta adicional para obtener el ID del tipo
-      const resourceTypeDoc = await this.resourceModel.db.collection('resource_types')
-        .findOne({ name: filters.resourceType });
-      if (resourceTypeDoc) {
-        query.typeId = resourceTypeDoc._id;
-      }
+      query.$or = [
+        { title: { $regex: filters.search, $options: 'i' } },
+        { isbn: { $regex: filters.search, $options: 'i' } },
+      ];
     }
 
     // Filtros por IDs
@@ -188,26 +107,13 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
       query.locationId = new Types.ObjectId(filters.locationId);
     }
 
-    if (filters.stateId) {
-      query.stateId = new Types.ObjectId(filters.stateId);
-    }
-
     if (filters.authorId) {
       query.authorIds = new Types.ObjectId(filters.authorId);
-    }
-
-    if (filters.publisherId) {
-      query.publisherId = new Types.ObjectId(filters.publisherId);
     }
 
     // Filtro por disponibilidad
     if (filters.availability) {
       query.available = filters.availability === 'available';
-    }
-
-    // Filtro por ISBN
-    if (filters.isbn) {
-      query.isbn = { $regex: filters.isbn, $options: 'i' };
     }
 
     const skip = (page - 1) * limit;
@@ -216,19 +122,10 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
       .exec();
     const totalPages = Math.ceil(total / limit);
 
-    // Configurar ordenamiento
-    const sort: any = {};
-    if (filters.search && !sortBy) {
-      // Si hay búsqueda de texto, ordenar por relevancia por defecto
-      sort.score = { $meta: 'textScore' };
-    } else {
-      sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
-    }
-
     const data = await this.resourceModel
       .find(query as FilterQuery<ResourceDocument>)
       .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .sort(sort)
+      .sort({ title: 1 })
       .skip(skip)
       .limit(limit)
       .exec();
@@ -239,30 +136,6 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
       page,
       totalPages,
     };
-  }
-
-  /**
-   * Obtener recursos más prestados
-   */
-  async getMostBorrowedResources(limit: number = 10): Promise<ResourceDocument[]> {
-    return this.resourceModel
-      .find({})
-      .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .sort({ totalLoans: -1 })
-      .limit(limit)
-      .exec();
-  }
-
-  /**
-   * Obtener recursos menos prestados
-   */
-  async getLeastBorrowedResources(limit: number = 10): Promise<ResourceDocument[]> {
-    return this.resourceModel
-      .find({})
-      .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .sort({ totalLoans: 1 })
-      .limit(limit)
-      .exec();
   }
 
   /**
@@ -280,26 +153,9 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
   }
 
   /**
-   * Incrementar contador de préstamos
-   */
-  async incrementLoanCount(resourceId: string): Promise<ResourceDocument | null> {
-    return this.resourceModel
-      .findByIdAndUpdate(
-        resourceId,
-        { 
-          $inc: { totalLoans: 1 },
-          lastLoanDate: new Date()
-        },
-        { new: true }
-      )
-      .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
-      .exec();
-  }
-
-  /**
    * Buscar con populate completo
    */
-  async findByIdWithFullPopulate(id: string): Promise<ResourceDocument | null> {
+  async findByIdWithPopulate(id: string): Promise<ResourceDocument | null> {
     return this.resourceModel
       .findById(id)
       .populate(['typeId', 'categoryId', 'authorIds', 'publisherId', 'stateId', 'locationId'])
@@ -307,100 +163,23 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
   }
 
   /**
-   * Obtener estadísticas generales de recursos
+   * Contar recursos por categoría
    */
-  async getResourceStatistics(): Promise<{
-    total: number;
-    available: number;
-    borrowed: number;
-    byType: Array<{ type: string; count: number }>;
-    byCategory: Array<{ category: string; count: number }>;
-    byState: Array<{ state: string; count: number }>;
-  }> {
-    const [total, available, byType, byCategory, byState] = await Promise.all([
-      this.resourceModel.countDocuments({}).exec(),
-      this.resourceModel.countDocuments({ available: true }).exec(),
-      this.resourceModel.aggregate([
-        {
-          $lookup: {
-            from: 'resource_types',
-            localField: 'typeId',
-            foreignField: '_id',
-            as: 'type'
-          }
-        },
-        { $unwind: '$type' },
-        {
-          $group: {
-            _id: '$type.name',
-            count: { $sum: 1 }
-          }
-        },
-        {
-          $project: {
-            type: '$_id',
-            count: 1,
-            _id: 0
-          }
-        }
-      ]).exec(),
-      this.resourceModel.aggregate([
-        {
-          $lookup: {
-            from: 'categories',
-            localField: 'categoryId',
-            foreignField: '_id',
-            as: 'category'
-          }
-        },
-        { $unwind: '$category' },
-        {
-          $group: {
-            _id: '$category.name',
-            count: { $sum: 1 }
-          }
-        },
-        {
-          $project: {
-            category: '$_id',
-            count: 1,
-            _id: 0
-          }
-        }
-      ]).exec(),
-      this.resourceModel.aggregate([
-        {
-          $lookup: {
-            from: 'resource_states',
-            localField: 'stateId',
-            foreignField: '_id',
-            as: 'state'
-          }
-        },
-        { $unwind: '$state' },
-        {
-          $group: {
-            _id: '$state.name',
-            count: { $sum: 1 }
-          }
-        },
-        {
-          $project: {
-            state: '$_id',
-            count: 1,
-            _id: 0
-          }
-        }
-      ]).exec()
-    ]);
+  async countByCategory(categoryId: string): Promise<number> {
+    return this.resourceModel.countDocuments({ categoryId: new Types.ObjectId(categoryId) }).exec();
+  }
 
-    return {
-      total,
-      available,
-      borrowed: total - available,
-      byType,
-      byCategory,
-      byState,
-    };
+  /**
+   * Contar recursos por ubicación
+   */
+  async countByLocation(locationId: string): Promise<number> {
+    return this.resourceModel.countDocuments({ locationId: new Types.ObjectId(locationId) }).exec();
+  }
+
+  /**
+   * Contar recursos por autor
+   */
+  async countByAuthor(authorId: string): Promise<number> {
+    return this.resourceModel.countDocuments({ authorIds: new Types.ObjectId(authorId) }).exec();
   }
 }

@@ -77,6 +77,25 @@ export class Resource extends Document {
   })
   googleBooksId?: string;
 
+  // ✅ CORRECCIÓN: Campo para URL de imagen de portada
+  @Prop({
+    type: String,
+    sparse: true,
+    validate: {
+      validator: function(url: string) {
+        if (!url) return true; // Optional field
+        try {
+          new URL(url);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      message: 'La URL de la imagen de portada debe ser válida'
+    }
+  })
+  coverImageUrl?: string;
+
   @Prop({
     default: true,
   })
@@ -121,6 +140,7 @@ ResourceSchema.index({ locationId: 1 });
 ResourceSchema.index({ isbn: 1 });
 ResourceSchema.index({ authorIds: 1 });
 ResourceSchema.index({ publisherId: 1 });
+ResourceSchema.index({ googleBooksId: 1 });
 
 // Índice compuesto para búsquedas
 ResourceSchema.index({ 
