@@ -66,10 +66,10 @@ export type PersonDocument = Person & Document;
 export const PersonSchema = SchemaFactory.createForClass(Person);
 
 // Índices para optimización
-PersonSchema.index({ firstName: 1, lastName: 1 });
-PersonSchema.index({ personTypeId: 1 });
-PersonSchema.index({ active: 1 });
-PersonSchema.index({ grade: 1 });
+//PersonSchema.index({ firstName: 1, lastName: 1 });
+//PersonSchema.index({ personTypeId: 1 });
+//PersonSchema.index({ active: 1 });
+//PersonSchema.index({ grade: 1 });
 
 // Índice compuesto para búsquedas
 PersonSchema.index({ firstName: 'text', lastName: 'text', documentNumber: 'text' });

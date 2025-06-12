@@ -48,6 +48,5 @@ export const LocationSchema = SchemaFactory.createForClass(Location);
 
 // Índices para optimización
 LocationSchema.index({ active: 1 });
-LocationSchema.index({ name: 1 });
 LocationSchema.index({ code: 1 });
 LocationSchema.index({ name: 'text' });

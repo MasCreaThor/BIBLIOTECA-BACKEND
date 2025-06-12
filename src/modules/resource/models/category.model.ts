@@ -49,5 +49,5 @@ export const CategorySchema = SchemaFactory.createForClass(Category);
 
 // Índices para optimización
 CategorySchema.index({ active: 1 });
-CategorySchema.index({ name: 1 });
+//CategorySchema.index({ name: 1 }); // Eliminado duplicado
 CategorySchema.index({ name: 'text' });

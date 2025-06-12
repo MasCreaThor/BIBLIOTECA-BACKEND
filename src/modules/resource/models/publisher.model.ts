@@ -27,6 +27,7 @@ export class Publisher extends Document {
   @Prop({
     type: String,
     sparse: true,
+    index: true,
   })
   googleBooksPublisherId?: string;
 
@@ -48,4 +49,3 @@ export const PublisherSchema = SchemaFactory.createForClass(Publisher);
 // Índices para optimización
 PublisherSchema.index({ active: 1 });
 PublisherSchema.index({ name: 'text' });
-PublisherSchema.index({ googleBooksPublisherId: 1 });

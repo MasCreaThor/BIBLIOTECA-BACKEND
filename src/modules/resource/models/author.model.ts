@@ -27,6 +27,7 @@ export class Author extends Document {
   @Prop({
     type: String,
     sparse: true,
+    index: true,
   })
   googleBooksAuthorId?: string;
 
@@ -48,4 +49,3 @@ export const AuthorSchema = SchemaFactory.createForClass(Author);
 // Índices para optimización
 AuthorSchema.index({ active: 1 });
 AuthorSchema.index({ name: 'text' });
-AuthorSchema.index({ googleBooksAuthorId: 1 });

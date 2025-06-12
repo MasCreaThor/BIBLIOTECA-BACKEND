@@ -1,17 +1,16 @@
-
-// src/database/seeds/seed.service.ts
+// src/database/seeds/seed.service.ts - ACTUALIZADO con préstamos
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UserRepository } from '@modules/user/repositories';
-import { PersonRepository } from '@modules/person/repositories';
-import { PersonTypeRepository } from '@modules/person/repositories';
+import { PersonRepository, PersonTypeRepository } from '@modules/person/repositories';
 import { ResourceSeedService } from '@modules/resource/seeds/resource-seed.service';
+import { LoanSeedService } from '@modules/loan/seeds/loan-seed.service'; // NUEVO
 import { PasswordService } from '@shared/services';
 import { LoggerService } from '@shared/services/logger.service';
 import { Types } from 'mongoose';
 
 /**
- * Servicio para sembrar datos iniciales
+ * Servicio para sembrar datos iniciales - ACTUALIZADO
  * Ruta: src/database/seeds/seed.service.ts
  */
 
@@ -21,6 +20,8 @@ export class SeedService {
     private readonly userRepository: UserRepository,
     private readonly personRepository: PersonRepository,
     private readonly personTypeRepository: PersonTypeRepository,
+    private readonly resourceSeedService: ResourceSeedService,
+    private readonly loanSeedService: LoanSeedService, // NUEVO
     private readonly passwordService: PasswordService,
     private readonly configService: ConfigService,
     private readonly logger: LoggerService,
@@ -35,8 +36,15 @@ export class SeedService {
     this.logger.log('Starting database seeding...');
 
     try {
+      // Orden de siembra importante: dependencias primero
       await this.seedPersonTypes();
       await this.seedAdminUser();
+      
+      // Sembrar datos de recursos (tipos, estados, categorías, ubicaciones)
+      await this.resourceSeedService.seedAll();
+      
+      // Sembrar datos de préstamos (estados de préstamos)
+      await this.loanSeedService.seedAll(); // NUEVO
 
       this.logger.log('Database seeding completed successfully');
     } catch (error) {
@@ -216,7 +224,7 @@ export class SeedService {
         await this.personRepository.create({
           ...personData,
           active: true,
-          personTypeId: new Types.ObjectId(), // Replace new Types.ObjectId() with the actual value for personTypeId
+          personTypeId: new Types.ObjectId(),
         });
 
         this.logger.log(`Created test person: ${personData.firstName} ${personData.lastName}`);
@@ -237,6 +245,9 @@ export class SeedService {
     this.logger.warn('Clearing all data...');
 
     try {
+      // Orden de limpieza: dependientes primero
+      await this.loanSeedService.clearLoanData(); // NUEVO
+      await this.resourceSeedService.clearResourceData();
       await this.userRepository.bulkDelete({});
       await this.personRepository.bulkDelete({});
       await this.personTypeRepository.bulkDelete({});
@@ -249,28 +260,45 @@ export class SeedService {
   }
 
   /**
-   * Verificar la integridad de los datos básicos
+   * Verificar la integridad de los datos básicos - ACTUALIZADO
    */
   async verifyDataIntegrity(): Promise<{
     hasAdmin: boolean;
     hasPersonTypes: boolean;
+    hasResourceData: boolean;
+    hasLoanData: boolean;
     personTypesCount: number;
     usersCount: number;
     peopleCount: number;
+    resourceTypesCount: number;
+    loanStatusesCount: number;
   }> {
-    const [hasAdmin, personTypes, usersCount, peopleCount] = await Promise.all([
+    const [
+      hasAdmin, 
+      personTypes, 
+      usersCount, 
+      peopleCount,
+      resourceIntegrity,
+      loanIntegrity
+    ] = await Promise.all([
       this.userRepository.hasAdminUser(),
       this.personTypeRepository.findAllActive(),
       this.userRepository.count({ active: true }),
       this.personRepository.count({ active: true }),
+      this.resourceSeedService.verifyResourceDataIntegrity(),
+      this.loanSeedService.verifyLoanDataIntegrity(), // NUEVO
     ]);
 
     return {
       hasAdmin,
       hasPersonTypes: personTypes.length >= 2,
+      hasResourceData: resourceIntegrity.hasResourceTypes && resourceIntegrity.hasResourceStates,
+      hasLoanData: loanIntegrity.hasLoanStatuses, // NUEVO
       personTypesCount: personTypes.length,
       usersCount,
       peopleCount,
+      resourceTypesCount: resourceIntegrity.resourceTypesCount,
+      loanStatusesCount: loanIntegrity.loanStatusesCount, // NUEVO
     };
   }
 }
