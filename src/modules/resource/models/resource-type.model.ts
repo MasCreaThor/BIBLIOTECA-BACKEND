@@ -44,4 +44,3 @@ export const ResourceTypeSchema = SchemaFactory.createForClass(ResourceType);
 
 // Índices para optimización
 ResourceTypeSchema.index({ active: 1 });
-ResourceTypeSchema.index({ name: 1 });

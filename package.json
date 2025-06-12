@@ -26,7 +26,9 @@
   "check:types": "tsc --noEmit",
   "fix:imports": "npm run build || echo 'Errores de compilación encontrados'",
   "admin:init": "ts-node -r tsconfig-paths/register src/common/seeds/admin-bootstrap.command.ts",
-    "admin:status": "ts-node -r tsconfig-paths/register src/common/seeds/admin-status.command.ts"
+    "admin:status": "ts-node -r tsconfig-paths/register src/common/seeds/admin-status.command.ts",
+    "loans:check-overdue": "ts-node -r tsconfig-paths/register src/database/utils/loan-utils.command.ts check-overdue",
+    "loans:update-overdue": "ts-node -r tsconfig-paths/register src/database/utils/loan-utils.command.ts update-overdue"
 },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

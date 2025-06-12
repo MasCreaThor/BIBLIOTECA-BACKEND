@@ -1,24 +1,23 @@
-// src/modules/resource/models/resource-state.model.ts
+// src/modules/loan/models/loan-status.model.ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 /**
- * Modelo para estados de recursos (good, deteriorated, damaged, lost)
+ * Modelo para estados de préstamos
  */
-
 @Schema({
   timestamps: true,
-  collection: 'resource_states',
+  collection: 'loan_statuses',
 })
-export class ResourceState extends Document {
+export class LoanStatus extends Document {
   @Prop({
     required: true,
     unique: true,
     trim: true,
     lowercase: true,
-    enum: ['good', 'deteriorated', 'damaged', 'lost'],
+    enum: ['active', 'returned', 'overdue', 'lost'],
   })
-  name!: 'good' | 'deteriorated' | 'damaged' | 'lost';
+  name!: 'active' | 'returned' | 'overdue' | 'lost';
 
   @Prop({
     required: true,
@@ -30,7 +29,7 @@ export class ResourceState extends Document {
   @Prop({
     type: String,
     match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Color debe ser un código hexadecimal válido'],
-    default: '#28a745',
+    default: '#007bff',
   })
   color!: string;
 
@@ -46,8 +45,8 @@ export class ResourceState extends Document {
   updatedAt!: Date;
 }
 
-export type ResourceStateDocument = ResourceState & Document;
-export const ResourceStateSchema = SchemaFactory.createForClass(ResourceState);
+export type LoanStatusDocument = LoanStatus & Document;
+export const LoanStatusSchema = SchemaFactory.createForClass(LoanStatus);
 
 // Índices para optimización
-ResourceStateSchema.index({ active: 1 });
+LoanStatusSchema.index({ active: 1 });

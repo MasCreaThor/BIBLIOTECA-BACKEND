@@ -1,4 +1,4 @@
-// src/app.module.ts
+// src/app.module.ts - ACTUALIZADO con LoanModule
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -20,6 +20,7 @@ import { UserModule } from './modules/user';
 import { AuthModule } from './modules/auth';
 import { PersonModule } from './modules/person';
 import { ResourceModule } from './modules/resource';
+import { LoanModule } from './modules/loan'; // NUEVO: Módulo de préstamos
 import { SeedModule } from './database/seeds/seed.module';
 
 @Module({
@@ -52,10 +53,12 @@ import { SeedModule } from './database/seeds/seed.module';
     // MÓDULO COMPARTIDO GLOBAL - Debe ir ANTES que otros módulos
     SharedModule,
 
+    // Módulos de la aplicación
     UserModule,
     AuthModule,
     PersonModule,
     ResourceModule,
+    LoanModule,
     SeedModule,
   ],
   controllers: [],

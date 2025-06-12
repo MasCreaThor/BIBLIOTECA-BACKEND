@@ -1,3 +1,4 @@
+// src/database/seeds/seed.module.ts - ACTUALIZADO
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
@@ -20,6 +21,7 @@ import {
   Location, 
   LocationSchema 
 } from '@modules/resource/models';
+import { Loan, LoanSchema, LoanStatus, LoanStatusSchema } from '@modules/loan/models'; // NUEVO
 
 // Repositorios
 import { UserRepository } from '@modules/user/repositories';
@@ -33,10 +35,12 @@ import {
   ResourceTypeRepository,
   ResourceStateRepository 
 } from '@modules/resource/repositories';
+import { LoanRepository, LoanStatusRepository } from '@modules/loan/repositories'; // NUEVO
 
 // Servicios
 import { SeedService } from './seed.service';
 import { ResourceSeedService } from '../../modules/resource/seeds/resource-seed.service';
+import { LoanSeedService } from '../../modules/loan/seeds/loan-seed.service'; // NUEVO
 import { PasswordService } from '@shared/services';
 import { LoggerService } from '@shared/services';
 
@@ -53,11 +57,14 @@ import { LoggerService } from '@shared/services';
       { name: Publisher.name, schema: PublisherSchema },
       { name: ResourceState.name, schema: ResourceStateSchema },
       { name: Location.name, schema: LocationSchema },
+      { name: Loan.name, schema: LoanSchema }, // NUEVO
+      { name: LoanStatus.name, schema: LoanStatusSchema }, // NUEVO
     ]),
   ],
   providers: [
     SeedService,
     ResourceSeedService,
+    LoanSeedService, // NUEVO
     PasswordService,
     LoggerService,
     UserRepository,
@@ -70,7 +77,9 @@ import { LoggerService } from '@shared/services';
     PublisherRepository,
     ResourceTypeRepository,
     ResourceStateRepository,
+    LoanRepository, // NUEVO
+    LoanStatusRepository, // NUEVO
   ],
-  exports: [SeedService, ResourceSeedService],
+  exports: [SeedService, ResourceSeedService, LoanSeedService], // ACTUALIZADO
 })
 export class SeedModule {}
