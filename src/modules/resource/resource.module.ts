@@ -1,4 +1,4 @@
-// src/modules/resource/resource.module.ts
+// src/modules/resource/resource.module.ts - CORREGIDO
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
@@ -12,6 +12,8 @@ import {
   AuthorController,
   PublisherController,
   LocationController,
+  ResourceTypeController,
+  ResourceStateController,
   
   // Integration controllers
   GoogleBooksController,
@@ -28,6 +30,8 @@ import {
   AuthorService,
   PublisherService,
   LocationService,
+  ResourceTypeService,
+  ResourceStateService,
   
   // Integration services
   GoogleBooksService,
@@ -69,15 +73,6 @@ import { GoogleBooksAdapter } from '@adapters/google-books.adapter';
 // Servicios compartidos
 import { LoggerService } from '@shared/services';
 
-/**
- * Módulo refactorizado para gestión de recursos de la biblioteca
- * 
- * Organización:
- * - Core: Funcionalidad principal de recursos
- * - Management: Gestión de entidades auxiliares (categorías, autores, etc.)
- * - Integration: Integraciones externas (Google Books)
- */
-
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -104,9 +99,12 @@ import { LoggerService } from '@shared/services';
     AuthorController,
     PublisherController,
     LocationController,
+    ResourceTypeController,
+    ResourceStateController,
     
     // Integration controllers
     GoogleBooksController,
+    GoogleBooksResourceController,  // ← AGREGADO AQUÍ
   ],
   providers: [
     // Core services
@@ -117,6 +115,8 @@ import { LoggerService } from '@shared/services';
     AuthorService,
     PublisherService,
     LocationService,
+    ResourceTypeService,
+    ResourceStateService,
     
     // Integration services
     GoogleBooksService,
@@ -146,6 +146,8 @@ import { LoggerService } from '@shared/services';
     AuthorService,
     PublisherService,
     LocationService,
+    ResourceTypeService,
+    ResourceStateService,
     
     // Integration services
     GoogleBooksService,
