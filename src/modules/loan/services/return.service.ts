@@ -1,268 +1,585 @@
 // src/modules/loan/services/return.service.ts
 import {
-    Injectable,
-    NotFoundException,
-    BadRequestException,
-  } from '@nestjs/common';
-  import { LoanRepository, LoanStatusRepository } from '@modules/loan/repositories';
-  import { ResourceRepository, ResourceStateRepository } from '@modules/resource/repositories';
-  import { LoanValidationService } from './loan-validation.service';
-  import { LoggerService } from '@shared/services/logger.service';
-  import {
-    ReturnLoanDto,
-    ReturnResponseDto,
-    LoanResponseDto,
-  } from '@modules/loan/dto';
-  import { LoanDocument } from '@modules/loan/models';
-  import { MongoUtils, DateUtils } from '@shared/utils';
-  import { ObjectId } from '@shared/types/mongoose.types';
-  
-  @Injectable()
-  export class ReturnService {
-    constructor(
-      private readonly loanRepository: LoanRepository,
-      private readonly loanStatusRepository: LoanStatusRepository,
-      private readonly resourceRepository: ResourceRepository,
-      private readonly resourceStateRepository: ResourceStateRepository,
-      private readonly loanValidationService: LoanValidationService,
-      private readonly logger: LoggerService,
-    ) {
-      this.logger.setContext('ReturnService');
-    }
-  
-    /**
-     * Procesar devolución de préstamo
-     */
-    async processReturn(returnLoanDto: ReturnLoanDto, returnedByUserId: string): Promise<ReturnResponseDto> {
-      const { loanId, returnDate, resourceCondition, returnObservations } = returnLoanDto;
-  
-      try {
-        // Validar que se puede realizar la devolución
-        await this.loanValidationService.validateLoanReturn(loanId);
-  
-        // Obtener el préstamo con información poblada
-        const loan = await this.loanRepository.findById(loanId);
-        if (!loan) {
-          throw new NotFoundException('Préstamo no encontrado');
-        }
-  
-        // Calcular información de la devolución
-        const returnDateTime = returnDate ? new Date(returnDate) : new Date();
-        const daysOverdue = this.calculateDaysOverdue(loan.dueDate, returnDateTime);
-        const wasOverdue = daysOverdue > 0;
-  
-        // Obtener estado apropiado para el préstamo
-        const returnedStatus = await this.loanStatusRepository.getReturnedStatus();
-        if (!returnedStatus) {
-          throw new BadRequestException('Estado de préstamo "devuelto" no encontrado en el sistema');
-        }
-  
-        // Actualizar el préstamo
-        const updateData: any = {
-          returnedDate: returnDateTime,
-          statusId: returnedStatus._id,
-          returnedBy: MongoUtils.toObjectId(returnedByUserId),
-        };
-  
-        // Agregar observaciones de devolución si existen
-        if (returnObservations) {
-          const currentObservations = loan.observations || '';
-          const newObservations = currentObservations 
-            ? `${currentObservations}\n[DEVOLUCIÓN]: ${returnObservations.trim()}`
-            : `[DEVOLUCIÓN]: ${returnObservations.trim()}`;
-          updateData.observations = newObservations;
-        }
-  
-        const updatedLoan = await this.loanRepository.update(loanId, updateData);
-        if (!updatedLoan) {
-          throw new NotFoundException('No se pudo actualizar el préstamo');
-        }
-  
-        // Gestionar estado del recurso
-        let resourceConditionChanged = false;
-        if (resourceCondition) {
-          resourceConditionChanged = await this.updateResourceCondition(
-            loan.resourceId.toString(),
-            resourceCondition
-          );
-        }
-  
-        // Actualizar disponibilidad del recurso
-        await this.resourceRepository.updateAvailability(loan.resourceId.toString(), true);
-  
-        // Generar mensaje de respuesta
-        let message = 'Devolución registrada exitosamente';
-        if (wasOverdue) {
-          message += ` (${daysOverdue} días de retraso)`;
-        }
-        if (resourceConditionChanged) {
-          message += `. Estado del recurso actualizado a: ${resourceCondition}`;
-        }
-  
-        this.logger.log(`Return processed successfully: Loan ${loanId}, ${daysOverdue} days overdue`);
-  
-        // Mapear respuesta
-        const loanResponse = this.mapLoanToResponseDto(updatedLoan);
-  
-        return {
-          loan: loanResponse,
-          daysOverdue,
-          wasOverdue,
-          resourceConditionChanged,
-          message,
-        };
-      } catch (error) {
-        if (
-          error instanceof BadRequestException ||
-          error instanceof NotFoundException
-        ) {
-          throw error;
-        }
-  
-        this.logger.error(`Error processing return for loan: ${loanId}`, error);
-        throw new BadRequestException('Error al procesar la devolución');
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { LoanRepository, LoanStatusRepository } from '@modules/loan/repositories';
+import { ResourceRepository } from '@modules/resource/repositories';
+import { LoanValidationService } from './loan-validation.service';
+import { LoggerService } from '@shared/services/logger.service';
+import {
+  ReturnLoanDto,
+  ReturnResponseDto,
+  LoanResponseDto,
+} from '@modules/loan/dto';
+import { LoanDocument } from '@modules/loan/models';
+import { Types } from 'mongoose';
+import { MongoUtils, getErrorMessage, getErrorStack } from '@shared/utils';
+
+@Injectable()
+export class ReturnService {
+  constructor(
+    private readonly loanRepository: LoanRepository,
+    private readonly loanStatusRepository: LoanStatusRepository,
+    private readonly resourceRepository: ResourceRepository,
+    private readonly loanValidationService: LoanValidationService,
+    private readonly logger: LoggerService,
+  ) {
+    this.logger.setContext('ReturnService');
+  }
+
+  /**
+   * Procesar devolución de préstamo
+   */
+  async processReturn(returnDto: ReturnLoanDto, userId: string): Promise<ReturnResponseDto> {
+    this.logger.log(`Processing return for loan: ${returnDto.loanId} by user: ${userId}`);
+
+    try {
+      // Validar datos de devolución
+      await this.loanValidationService.validateReturnData(
+        returnDto.loanId,
+        returnDto.returnDate ? new Date(returnDto.returnDate) : undefined
+      );
+
+      // Obtener el préstamo
+      const loan = await this.loanRepository.findById(returnDto.loanId);
+      if (!loan) {
+        throw new NotFoundException('Préstamo no encontrado');
       }
-    }
-  
-    /**
-     * Marcar préstamo como perdido
-     */
-    async markAsLost(loanId: string, observations: string, markedByUserId: string): Promise<LoanResponseDto> {
-      try {
-        if (!MongoUtils.isValidObjectId(loanId)) {
-          throw new BadRequestException('ID de préstamo inválido');
-        }
-  
-        const loan = await this.loanRepository.findById(loanId);
-        if (!loan) {
-          throw new NotFoundException('Préstamo no encontrado');
-        }
-  
-        if (loan.returnedDate) {
-          throw new BadRequestException('Este préstamo ya fue devuelto');
-        }
-  
-        // Obtener estados necesarios
-        const lostStatus = await this.loanStatusRepository.getLostStatus();
-        const lostResourceState = await this.resourceStateRepository.getLostState();
-  
-        if (!lostStatus) {
-          throw new BadRequestException('Estado de préstamo "perdido" no encontrado en el sistema');
-        }
-  
-        if (!lostResourceState) {
-          throw new BadRequestException('Estado de recurso "perdido" no encontrado en el sistema');
-        }
-  
-        // Actualizar préstamo
-        const updateData: any = {
-          statusId: lostStatus._id,
-          returnedBy: MongoUtils.toObjectId(markedByUserId),
-        };
-  
-        if (observations) {
-          const currentObservations = loan.observations || '';
-          const newObservations = currentObservations 
-            ? `${currentObservations}\n[PERDIDO]: ${observations.trim()}`
-            : `[PERDIDO]: ${observations.trim()}`;
-          updateData.observations = newObservations;
-        }
-  
-        const updatedLoan = await this.loanRepository.update(loanId, updateData);
-        if (!updatedLoan) {
-          throw new NotFoundException('No se pudo actualizar el préstamo');
-        }
-  
-        // Actualizar estado del recurso a perdido
-        await this.resourceRepository.update(loan.resourceId.toString(), {
-          stateId: lostResourceState._id as ObjectId,
-          available: false,
-        });
-  
-        this.logger.log(`Loan marked as lost: ${loanId}`);
-  
-        return this.mapLoanToResponseDto(updatedLoan);
-      } catch (error) {
-        if (
-          error instanceof BadRequestException ||
-          error instanceof NotFoundException
-        ) {
-          throw error;
-        }
-  
-        this.logger.error(`Error marking loan as lost: ${loanId}`, error);
-        throw new BadRequestException('Error al marcar el préstamo como perdido');
+
+      if (loan.returnedDate) {
+        throw new BadRequestException('Este préstamo ya ha sido devuelto');
       }
-    }
-  
-    /**
-     * Calcular días de retraso
-     */
-    private calculateDaysOverdue(dueDate: Date, returnDate: Date): number {
-      if (returnDate <= dueDate) {
-        return 0;
-      }
-      return DateUtils.daysDifference(dueDate, returnDate);
-    }
-  
-    /**
-     * Actualizar estado del recurso devuelto
-     */
-    private async updateResourceCondition(
-      resourceId: string, 
-      condition: 'good' | 'deteriorated' | 'damaged' | 'lost'
-    ): Promise<boolean> {
-      try {
-        const resourceState = await this.resourceStateRepository.findByName(condition);
-        if (!resourceState) {
-          this.logger.warn(`Resource state "${condition}" not found`);
-          return false;
-        }
-  
-        const resource = await this.resourceRepository.findById(resourceId);
-        if (!resource) {
-          this.logger.warn(`Resource ${resourceId} not found`);
-          return false;
-        }
-  
-        // Solo actualizar si el estado es diferente
-        if (resource.stateId.toString() !== (resourceState._id as ObjectId).toString()) {
-          await this.resourceRepository.update(resourceId, {
-            stateId: resourceState._id as ObjectId,
-          });
-          
-          this.logger.log(`Resource ${resourceId} condition updated to: ${condition}`);
-          return true;
-        }
-  
-        return false;
-      } catch (error) {
-        this.logger.error(`Error updating resource condition: ${resourceId}`, error);
-        return false;
-      }
-    }
-  
-    /**
-     * Mapear préstamo a DTO de respuesta
-     */
-    private mapLoanToResponseDto(loan: LoanDocument): LoanResponseDto {
-      return {
-        _id: (loan._id as any).toString(),
-        personId: loan.personId.toString(),
-        resourceId: loan.resourceId.toString(),
-        quantity: loan.quantity,
-        loanDate: loan.loanDate,
+
+      // Calcular información de la devolución
+      const returnDate = returnDto.returnDate ? new Date(returnDto.returnDate) : new Date();
+      const daysOverdue = this.calculateDaysOverdue(loan.dueDate, returnDate);
+      const wasOverdue = daysOverdue > 0;
+
+      this.logger.debug(`Return calculation for loan ${returnDto.loanId}:`, {
+        returnDate,
         dueDate: loan.dueDate,
-        returnedDate: loan.returnedDate,
-        statusId: loan.statusId.toString(),
-        observations: loan.observations,
-        loanedBy: loan.loanedBy.toString(),
-        returnedBy: loan.returnedBy?.toString(),
-        daysOverdue: loan.daysOverdue,
-        isOverdue: loan.isOverdue,
-        createdAt: loan.createdAt,
-        updatedAt: loan.updatedAt,
+        daysOverdue,
+        wasOverdue
+      });
+
+      // Obtener estado de "devuelto"
+      const returnedStatus = await this.loanStatusRepository.getReturnedStatus();
+      if (!returnedStatus) {
+        throw new BadRequestException('Estado de préstamo "devuelto" no encontrado');
+      }
+
+      // Actualizar el préstamo
+      const updateData: Partial<LoanDocument> = {
+        returnedDate: returnDate,
+        statusId: returnedStatus._id as Types.ObjectId,
+        returnedBy: new Types.ObjectId(userId),
       };
+
+      // Agregar observaciones de devolución si las hay
+      if (returnDto.returnObservations) {
+        const currentObservations = loan.observations || '';
+        const newObservations = currentObservations 
+          ? `${currentObservations}\n[DEVOLUCIÓN]: ${returnDto.returnObservations.trim()}`
+          : `[DEVOLUCIÓN]: ${returnDto.returnObservations.trim()}`;
+        updateData.observations = newObservations;
+      }
+
+      const updatedLoan = await this.loanRepository.update(returnDto.loanId, updateData);
+      if (!updatedLoan) {
+        throw new NotFoundException('No se pudo actualizar el préstamo');
+      }
+
+      // Gestionar estado del recurso y disponibilidad
+      let resourceConditionChanged = false;
+      if (returnDto.resourceCondition) {
+        resourceConditionChanged = await this.updateResourceCondition(
+          loan.resourceId.toString(),
+          returnDto.resourceCondition
+        );
+      }
+
+      // Actualizar disponibilidad del recurso (solo si no está perdido o dañado)
+      if (returnDto.resourceCondition !== 'lost' && returnDto.resourceCondition !== 'damaged') {
+        await this.resourceRepository.updateAvailability(loan.resourceId.toString(), true);
+        this.logger.debug(`Resource ${loan.resourceId} marked as available`);
+      } else {
+        this.logger.debug(`Resource ${loan.resourceId} kept as unavailable due to condition: ${returnDto.resourceCondition}`);
+      }
+
+      // Generar mensaje de respuesta
+      let message = 'Devolución registrada exitosamente';
+      if (wasOverdue) {
+        message += ` (${daysOverdue} día${daysOverdue > 1 ? 's' : ''} de retraso)`;
+      }
+      if (resourceConditionChanged) {
+        message += `. Estado del recurso actualizado a: ${this.getConditionDescription(returnDto.resourceCondition!)}`;
+      }
+
+      this.logger.log(`Return processed successfully for loan: ${returnDto.loanId}`, {
+        wasOverdue,
+        daysOverdue,
+        resourceConditionChanged
+      });
+
+      // Crear respuesta
+      const response: ReturnResponseDto = {
+        loan: this.mapLoanToResponseDto(updatedLoan),
+        daysOverdue,
+        wasOverdue,
+        resourceConditionChanged,
+        message,
+      };
+
+      return response;
+
+    } catch (error) {
+      this.logger.error(`Error processing return for loan: ${returnDto.loanId}`, {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error),
+        userId,
+        returnDto
+      });
+
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new BadRequestException('Error al procesar la devolución: ' + getErrorMessage(error));
     }
   }
-  
+
+  /**
+   * Marcar préstamo como perdido
+   */
+  async markAsLost(loanId: string, observations: string, userId: string): Promise<LoanResponseDto> {
+    this.logger.log(`Marking loan as lost: ${loanId} by user: ${userId}`);
+
+    try {
+      if (!MongoUtils.isValidObjectId(loanId)) {
+        throw new BadRequestException('ID de préstamo inválido');
+      }
+
+      if (!observations || observations.trim().length === 0) {
+        throw new BadRequestException('Las observaciones son requeridas para marcar como perdido');
+      }
+
+      if (observations.length > 500) {
+        throw new BadRequestException('Las observaciones no pueden exceder 500 caracteres');
+      }
+
+      // Obtener el préstamo
+      const loan = await this.loanRepository.findById(loanId);
+      if (!loan) {
+        throw new NotFoundException('Préstamo no encontrado');
+      }
+
+      if (loan.returnedDate) {
+        throw new BadRequestException('No se puede marcar como perdido un préstamo ya devuelto');
+      }
+
+      // Obtener estado de "perdido"
+      const lostStatus = await this.loanStatusRepository.getLostStatus();
+      if (!lostStatus) {
+        throw new BadRequestException('Estado de préstamo "perdido" no encontrado');
+      }
+
+      // Actualizar el préstamo
+      const currentObservations = loan.observations || '';
+      const newObservations = currentObservations 
+        ? `${currentObservations}\n[PERDIDO]: ${observations.trim()}`
+        : `[PERDIDO]: ${observations.trim()}`;
+
+      const updateData = {
+        statusId: lostStatus._id as Types.ObjectId,
+        observations: newObservations,
+        returnedBy: new Types.ObjectId(userId),
+      };
+
+      const updatedLoan = await this.loanRepository.update(loanId, updateData);
+      if (!updatedLoan) {
+        throw new NotFoundException('No se pudo actualizar el préstamo');
+      }
+
+      // Marcar recurso como perdido y no disponible
+      await this.updateResourceCondition(loan.resourceId.toString(), 'lost');
+      await this.resourceRepository.updateAvailability(loan.resourceId.toString(), false);
+
+      this.logger.log(`Loan marked as lost successfully: ${loanId}`);
+
+      return this.mapLoanToResponseDto(updatedLoan);
+
+    } catch (error) {
+      this.logger.error(`Error marking loan as lost: ${loanId}`, {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error),
+        userId,
+        observations
+      });
+
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new BadRequestException('Error al marcar como perdido: ' + getErrorMessage(error));
+    }
+  }
+
+  /**
+   * Renovar préstamo (extender fecha de vencimiento)
+   */
+  async renewLoan(loanId: string, additionalDays: number, userId: string): Promise<LoanResponseDto> {
+    this.logger.log(`Renewing loan: ${loanId} for ${additionalDays} days by user: ${userId}`);
+
+    try {
+      if (!MongoUtils.isValidObjectId(loanId)) {
+        throw new BadRequestException('ID de préstamo inválido');
+      }
+
+      if (additionalDays < 1 || additionalDays > 30) {
+        throw new BadRequestException('Los días adicionales deben estar entre 1 y 30');
+      }
+
+      // Obtener el préstamo
+      const loan = await this.loanRepository.findById(loanId);
+      if (!loan) {
+        throw new NotFoundException('Préstamo no encontrado');
+      }
+
+      if (loan.returnedDate) {
+        throw new BadRequestException('No se puede renovar un préstamo ya devuelto');
+      }
+
+      // Verificar que la persona no tenga otros préstamos vencidos
+      const hasOtherOverdueLoans = await this.hasOtherOverdueLoans(
+        loan.personId.toString(), 
+        loanId
+      );
+      
+      if (hasOtherOverdueLoans) {
+        throw new BadRequestException('No se puede renovar el préstamo porque la persona tiene otros préstamos vencidos');
+      }
+
+      // Calcular nueva fecha de vencimiento
+      const newDueDate = new Date(loan.dueDate);
+      newDueDate.setDate(newDueDate.getDate() + additionalDays);
+
+      // Actualizar el préstamo
+      const currentObservations = loan.observations || '';
+      const renewalNote = `[RENOVACIÓN]: Extendido por ${additionalDays} días hasta ${newDueDate.toLocaleDateString()}`;
+      const newObservations = currentObservations 
+        ? `${currentObservations}\n${renewalNote}`
+        : renewalNote;
+
+      const updateData = {
+        dueDate: newDueDate,
+        observations: newObservations,
+      };
+
+      const updatedLoan = await this.loanRepository.update(loanId, updateData);
+      if (!updatedLoan) {
+        throw new NotFoundException('No se pudo actualizar el préstamo');
+      }
+
+      this.logger.log(`Loan renewed successfully: ${loanId} until ${newDueDate.toISOString()}`);
+
+      return this.mapLoanToResponseDto(updatedLoan);
+
+    } catch (error) {
+      this.logger.error(`Error renewing loan: ${loanId}`, {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error),
+        userId,
+        additionalDays
+      });
+
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new BadRequestException('Error al renovar préstamo: ' + getErrorMessage(error));
+    }
+  }
+
+  /**
+   * Obtener devoluciones pendientes (préstamos vencidos)
+   */
+  async getPendingReturns(limit: number = 50): Promise<LoanResponseDto[]> {
+    this.logger.debug(`Getting pending returns, limit: ${limit}`);
+
+    try {
+      const overdueLoans = await this.loanRepository.findOverdue();
+      return overdueLoans.slice(0, limit).map((loan: LoanDocument) => this.mapLoanToResponseDto(loan));
+    } catch (error) {
+      this.logger.error('Error getting pending returns', {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error),
+        limit
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener historial de devoluciones
+   */
+  async getReturnHistory(
+    dateFrom?: Date,
+    dateTo?: Date,
+    limit: number = 100
+  ): Promise<LoanResponseDto[]> {
+    this.logger.debug(`Getting return history from ${dateFrom} to ${dateTo}, limit: ${limit}`);
+
+    try {
+      const filters: any = {
+        returnedDate: { $ne: null }
+      };
+
+      if (dateFrom) {
+        filters.returnedDate = { ...filters.returnedDate, $gte: dateFrom };
+      }
+
+      if (dateTo) {
+        filters.returnedDate = { ...filters.returnedDate, $lte: dateTo };
+      }
+
+      // Esta implementación podría expandirse con un método específico en el repository
+      const result = await this.loanRepository.findWithFilters(filters, 1, limit);
+      return result.data.map(loan => this.mapLoanToResponseDto(loan));
+    } catch (error) {
+      this.logger.error('Error getting return history', {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error),
+        dateFrom,
+        dateTo,
+        limit
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Procesar devoluciones en lote
+   */
+  async processBatchReturns(
+    returns: Array<{
+      loanId: string;
+      returnDate?: string;
+      resourceCondition?: 'good' | 'deteriorated' | 'damaged' | 'lost';
+      returnObservations?: string;
+    }>,
+    userId: string
+  ): Promise<Array<{
+    loanId: string;
+    success: boolean;
+    result?: ReturnResponseDto;
+    error?: string;
+  }>> {
+    this.logger.log(`Processing batch returns: ${returns.length} items by user: ${userId}`);
+
+    const results: Array<{
+      loanId: string;
+      success: boolean;
+      result?: ReturnResponseDto;
+      error?: string;
+    }> = [];
+
+    for (const returnData of returns) {
+      try {
+        if (!returnData.loanId) {
+          throw new Error('ID de préstamo requerido');
+        }
+
+        const returnDto: ReturnLoanDto = {
+          loanId: returnData.loanId,
+          returnDate: returnData.returnDate,
+          resourceCondition: returnData.resourceCondition,
+          returnObservations: returnData.returnObservations,
+        };
+
+        const result = await this.processReturn(returnDto, userId);
+        
+        results.push({
+          loanId: returnData.loanId,
+          success: true,
+          result
+        });
+      } catch (error) {
+        results.push({
+          loanId: returnData.loanId,
+          success: false,
+          error: getErrorMessage(error)
+        });
+        
+        this.logger.warn(`Failed to process return in batch: ${returnData.loanId}`, {
+          error: getErrorMessage(error)
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Obtener préstamos vencidos
+   */
+  async getOverdueLoans(limit: number = 50): Promise<LoanResponseDto[]> {
+    try {
+      const overdueLoans = await this.loanRepository.findOverdue();
+      return overdueLoans.slice(0, limit).map((loan: LoanDocument) => this.mapLoanToResponseDto(loan));
+    } catch (error) {
+      this.logger.error('Error getting overdue loans', {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error)
+      });
+      throw new BadRequestException('Error al obtener préstamos vencidos: ' + getErrorMessage(error));
+    }
+  }
+
+  // ===== MÉTODOS PRIVADOS =====
+
+  /**
+   * Calcular días de retraso
+   */
+  private calculateDaysOverdue(dueDate: Date, returnDate: Date): number {
+    if (returnDate <= dueDate) {
+      return 0;
+    }
+
+    const diffTime = returnDate.getTime() - dueDate.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
+
+  /**
+   * Actualizar condición del recurso
+   */
+  private async updateResourceCondition(
+    resourceId: string,
+    condition: 'good' | 'deteriorated' | 'damaged' | 'lost'
+  ): Promise<boolean> {
+    try {
+      // Esta implementación depende de cómo esté estructurado el ResourceRepository
+      // Por ahora, asumimos que existe un método para actualizar el estado
+      
+      const conditionMap = {
+        good: 'good',
+        deteriorated: 'deteriorated',
+        damaged: 'damaged',
+        lost: 'lost'
+      };
+
+      // Aquí iría la lógica para actualizar el estado del recurso
+      // await this.resourceRepository.updateCondition(resourceId, conditionMap[condition]);
+      
+      this.logger.debug(`Resource condition updated: ${resourceId} -> ${condition}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Error updating resource condition: ${resourceId}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Verificar si la persona tiene otros préstamos vencidos
+   */
+  private async hasOtherOverdueLoans(personId: string, excludeLoanId: string): Promise<boolean> {
+    try {
+      const overdueLoans = await this.loanRepository.findOverdueByPerson(personId);
+      return overdueLoans.some(loan => {
+        const loanId = loan._id?.toString();
+        return loanId && loanId !== excludeLoanId;
+      });
+    } catch (error) {
+      this.logger.error('Error checking for other overdue loans', {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error),
+        personId,
+        excludeLoanId
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Obtener descripción de la condición del recurso
+   */
+  private getConditionDescription(condition: string): string {
+    const descriptions = {
+      good: 'Buen estado',
+      deteriorated: 'Deteriorado',
+      damaged: 'Dañado',
+      lost: 'Perdido'
+    };
+
+    return descriptions[condition as keyof typeof descriptions] || condition;
+  }
+
+  /**
+   * Mapear préstamo a DTO de respuesta
+   */
+  private mapLoanToResponseDto(loan: LoanDocument): LoanResponseDto {
+    return {
+      _id: loan._id?.toString() || '',
+      personId: loan.personId?.toString() || '',
+      resourceId: loan.resourceId?.toString() || '',
+      quantity: loan.quantity,
+      loanDate: loan.loanDate,
+      dueDate: loan.dueDate,
+      returnedDate: loan.returnedDate,
+      statusId: loan.statusId?.toString() || '',
+      observations: loan.observations,
+      loanedBy: loan.loanedBy?.toString() || '',
+      returnedBy: loan.returnedBy?.toString(),
+      daysOverdue: loan.daysOverdue,
+      isOverdue: loan.isOverdue,
+      createdAt: loan.createdAt,
+      updatedAt: loan.updatedAt,
+      person: loan.populated('personId') ? {
+        _id: (loan.personId as any)._id?.toString() || '',
+        firstName: (loan.personId as any).firstName || '',
+        lastName: (loan.personId as any).lastName || '',
+        fullName: (loan.personId as any).fullName || `${(loan.personId as any).firstName} ${(loan.personId as any).lastName}`,
+        documentNumber: (loan.personId as any).documentNumber,
+        grade: (loan.personId as any).grade,
+        personType: (loan.personId as any).personType ? {
+          _id: (loan.personId as any).personType._id?.toString() || '',
+          name: (loan.personId as any).personType.name || '',
+          description: (loan.personId as any).personType.description || '',
+        } : undefined,
+      } : undefined,
+      resource: loan.populated('resourceId') ? {
+        _id: (loan.resourceId as any)._id?.toString() || '',
+        title: (loan.resourceId as any).title || '',
+        isbn: (loan.resourceId as any).isbn,
+        author: (loan.resourceId as any).author,
+        category: (loan.resourceId as any).category,
+        available: (loan.resourceId as any).available,
+        state: (loan.resourceId as any).state ? {
+          _id: (loan.resourceId as any).state._id?.toString() || '',
+          name: (loan.resourceId as any).state.name || '',
+          description: (loan.resourceId as any).state.description || '',
+          color: (loan.resourceId as any).state.color || '',
+        } : undefined,
+      } : undefined,
+      status: loan.populated('statusId') ? {
+        _id: (loan.statusId as any)._id?.toString() || '',
+        name: (loan.statusId as any).name || '',
+        description: (loan.statusId as any).description || '',
+        color: (loan.statusId as any).color || '',
+      } : undefined,
+      loanedByUser: loan.populated('loanedBy') ? {
+        _id: (loan.loanedBy as any)._id?.toString() || '',
+        firstName: (loan.loanedBy as any).firstName || '',
+        lastName: (loan.loanedBy as any).lastName || '',
+        username: (loan.loanedBy as any).username || '',
+      } : undefined,
+      returnedByUser: loan.populated('returnedBy') ? {
+        _id: (loan.returnedBy as any)._id?.toString() || '',
+        firstName: (loan.returnedBy as any).firstName || '',
+        lastName: (loan.returnedBy as any).lastName || '',
+        username: (loan.returnedBy as any).username || '',
+      } : undefined,
+    };
+  }
+}

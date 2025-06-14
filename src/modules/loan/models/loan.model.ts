@@ -76,6 +76,17 @@ export class Loan extends Document {
   })
   returnedBy?: Types.ObjectId; // Usuario que registró la devolución
 
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'User',
+  })
+  renewedBy?: Types.ObjectId; // Usuario que renovó el préstamo
+
+  @Prop({
+    type: Date,
+  })
+  renewedAt?: Date; // Fecha de la última renovación
+
   @Prop()
   createdAt!: Date;
 

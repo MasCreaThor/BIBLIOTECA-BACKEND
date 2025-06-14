@@ -1,69 +1,96 @@
 // src/modules/loan/dto/overdue.dto.ts
-import {
-    IsOptional,
-    IsMongoId,
-    IsNumber,
-    Min,
-    Max,
-    IsEnum,
-    IsDateString,
-  } from 'class-validator';
-  import { Transform, Type } from 'class-transformer';
-  import { SearchDto } from '@shared/dto';
-  import { LoanResponseDto } from './loan.dto';
-  
-  export class OverdueSearchDto extends SearchDto {
-    @IsOptional()
-    @IsMongoId({ message: 'La persona debe ser un ID válido' })
-    personId?: string;
-  
-    @IsOptional()
-    @IsEnum(['student', 'teacher'], { message: 'El tipo debe ser student o teacher' })
-    personType?: 'student' | 'teacher';
-  
-    @IsOptional()
-    @IsNumber({}, { message: 'Los días mínimos de retraso deben ser un número' })
-    @Min(1, { message: 'Los días mínimos deben ser al menos 1' })
-    @Max(365, { message: 'Los días mínimos no pueden exceder 365' })
-    @Type(() => Number)
-    minDaysOverdue?: number;
-  
-    @IsOptional()
-    @IsDateString({}, { message: 'La fecha de vencimiento desde debe ser válida' })
-    dueDateFrom?: string;
-  
-    @IsOptional()
-    @IsDateString({}, { message: 'La fecha de vencimiento hasta debe ser válida' })
-    dueDateTo?: string;
-  
-    @IsOptional()
-    @Transform(({ value }: { value: string }) => value?.trim())
-    grade?: string;
-  }
-  
-  export class OverdueResponseDto extends LoanResponseDto {
-    daysOverdue!: number;
-    severity!: 'low' | 'medium' | 'high' | 'critical';
-  }
-  
-  export class OverdueStatsDto {
-    totalOverdue!: number;
-    byPersonType!: {
-      students: number;
-      teachers: number;
-    };
-    bySeverity!: {
-      low: number; // 1-7 días
-      medium: number; // 8-15 días
-      high: number; // 16-30 días
-      critical: number; // 30+ días
-    };
-    byGrade!: Array<{
-      grade: string;
-      count: number;
-    }>;
-    oldestOverdue!: {
-      daysOverdue: number;
-      loan: LoanResponseDto;
-    } | null;
-  }
+import { IsOptional, IsString, IsNumber, Min, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class OverdueSearchDto {
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  personId?: string;
+
+  @IsOptional()
+  @IsString()
+  resourceId?: string;
+
+  @IsOptional()
+  @IsString()
+  dateFrom?: string;
+
+  @IsOptional()
+  @IsString()
+  dateTo?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  limit?: number = 20;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsEnum(['asc', 'desc'])
+  sortOrder?: 'asc' | 'desc';
+
+  @IsOptional()
+  @IsString()
+  personType?: 'student' | 'teacher';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  minDaysOverdue?: number;
+
+  @IsOptional()
+  @IsString()
+  grade?: string;
+}
+
+export class OverdueResponseDto {
+  _id!: string;
+  personId!: string;
+  resourceId!: string;
+  dueDate!: Date;
+  daysOverdue!: number;
+  status!: string;
+  createdAt!: Date;
+  updatedAt!: Date;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+}
+
+export class OverdueStatsDto {
+  totalOverdue!: number;
+  totalOverdueAmount!: number;
+  averageDaysOverdue!: number;
+  recentOverdue!: OverdueResponseDto[];
+  byPersonType!: {
+    students: number;
+    teachers: number;
+  };
+  bySeverity!: {
+    low: number;
+    medium: number;
+    high: number;
+    critical: number;
+  };
+  byGrade?: Array<{
+    grade: string;
+    count: number;
+  }>;
+  oldestOverdue?: {
+    daysOverdue: number;
+    loan: OverdueResponseDto;
+  } | null;
+}

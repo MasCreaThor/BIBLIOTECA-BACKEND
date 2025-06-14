@@ -2,6 +2,8 @@
 import { Injectable } from '@nestjs/common';
 import { LoanStatusRepository } from '@modules/loan/repositories';
 import { LoggerService } from '@shared/services/logger.service';
+import { getErrorMessage, getErrorStack } from '@shared/utils/error-utils';
+import { Types } from 'mongoose';
 
 /**
  * Servicio para sembrar datos iniciales de préstamos
@@ -84,7 +86,7 @@ export class LoanSeedService {
     hasLoanStatuses: boolean;
     loanStatusesCount: number;
   }> {
-    const loanStatuses = await this.loanStatusRepository.findAllActive();
+    const loanStatuses = await this.loanStatusRepository.findAll();
 
     return {
       hasLoanStatuses: loanStatuses.length >= 4, // active, returned, overdue, lost
@@ -99,11 +101,18 @@ export class LoanSeedService {
     this.logger.warn('Clearing loan data...');
 
     try {
-      await this.loanStatusRepository.bulkDelete({});
+      // Eliminar todos los estados de préstamo
+      const statuses = await this.loanStatusRepository.findAll();
+      for (const status of statuses) {
+        await this.loanStatusRepository.delete((status._id as Types.ObjectId).toString());
+      }
       this.logger.log('Loan data cleared successfully');
     } catch (error) {
-      this.logger.error('Error clearing loan data', error);
-      throw error;
+      this.logger.error('Error clearing loan data', {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error)
+      });
+      throw new Error('Error al limpiar datos de préstamos: ' + getErrorMessage(error));
     }
   }
 }
