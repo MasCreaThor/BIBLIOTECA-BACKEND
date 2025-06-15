@@ -125,6 +125,121 @@ export class LoanController {
     }
   }
 
+  // ✅ RUTAS ESPECÍFICAS PRIMERO - Estas van ANTES que las rutas con parámetros
+
+  /**
+   * Obtener estadísticas de préstamos
+   * GET /api/loans/statistics
+   */
+  @Get('statistics')
+  async getStatistics(): Promise<ApiResponseDto<{
+    totalLoans: number;
+    activeLoans: number;
+    overdueLoans: number;
+    returnedThisMonth: number;
+    mostBorrowedResources: Array<{ resourceId: string; count: number }>;
+  }>> {
+    this.logger.debug('Getting loan statistics');
+
+    try {
+      const stats = await this.loanService.getStatistics();
+      
+      this.logger.debug('Loan statistics:', stats);
+      return ApiResponseDto.success(
+        stats,
+        'Estadísticas de préstamos obtenidas exitosamente',
+        HttpStatus.OK
+      );
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error('Error getting loan statistics', {
+        error: errorMessage,
+        stack: getErrorStack(error)
+      });
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Obtener resumen de préstamos por período
+   * GET /api/loans/summary
+   */
+  @Get('summary')
+  async getLoanSummary(
+    @Query('period') period: 'today' | 'week' | 'month' | 'year' = 'month',
+  ): Promise<ApiResponseDto<{
+    totalLoans: number;
+    newLoans: number;
+    returnedLoans: number;
+    overdueLoans: number;
+    activeLoans: number;
+    period: string;
+    dateRange: { start: string; end: string };
+  }>> {
+    this.logger.debug(`Getting loan summary for period: ${period}`);
+
+    try {
+      const summary = await this.loanService.getLoanSummary(period);
+      
+      this.logger.debug('Loan summary:', summary);
+      return ApiResponseDto.success(
+        summary,
+        'Resumen de préstamos obtenido exitosamente',
+        HttpStatus.OK
+      );
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error getting loan summary for period: ${period}`, {
+        error: errorMessage,
+        stack: getErrorStack(error)
+      });
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Obtener préstamos por rango de fechas
+   * GET /api/loans/by-date-range
+   */
+  @Get('by-date-range')
+  async getLoansByDateRange(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ): Promise<ApiResponseDto<PaginatedResponseDto<LoanResponseDto>>> {
+    this.logger.debug('Getting loans by date range', {
+      startDate, endDate, page, limit, search, status
+    });
+
+    try {
+      const result = await this.loanService.getLoansByDateRange(
+        startDate,
+        endDate,
+        { page, limit, search, status }
+      );
+      
+      this.logger.debug(`Found ${result.data.length} loans out of ${result.pagination.total} total`);
+      return ApiResponseDto.success(
+        result,
+        'Préstamos por rango de fechas obtenidos exitosamente',
+        HttpStatus.OK
+      );
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error('Error getting loans by date range', {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        filters: { startDate, endDate, page, limit, search, status }
+      });
+      throw new Error(errorMessage);
+    }
+  }
+
+  // ✅ RUTAS CON PARÁMETROS AL FINAL - Estas van DESPUÉS de las rutas específicas
+
   /**
    * Obtener préstamo por ID
    * GET /api/loans/:id
@@ -152,6 +267,44 @@ export class LoanController {
       this.logger.error(`Error finding loan by ID: ${id}`, {
         error: errorMessage,
         stack: getErrorStack(error)
+      });
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Renovar un préstamo
+   * POST /api/loans/:id/renew
+   */
+  @Post(':id/renew')
+  async renewLoan(
+    @Param('id') id: string,
+    @Body() body: { additionalDays?: number },
+    @CurrentUserId() userId: string,
+  ): Promise<ApiResponseDto<LoanResponseDto>> {
+    this.logger.debug(`Renewing loan: ${id}, User: ${userId}`);
+
+    try {
+      if (!MongoUtils.isValidObjectId(id)) {
+        this.logger.warn(`Invalid loan ID format: ${id}`);
+        throw new Error('ID de préstamo inválido');
+      }
+
+      const loan = await this.loanService.renewLoan(id, body.additionalDays, userId);
+      
+      this.logger.debug(`Loan renewed successfully: ${loan._id}`);
+      return ApiResponseDto.success(
+        loan,
+        'Préstamo renovado exitosamente',
+        HttpStatus.OK
+      );
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error renewing loan: ${id}`, {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        userId,
+        additionalDays: body.additionalDays
       });
       throw new Error(errorMessage);
     }
@@ -283,12 +436,12 @@ export class LoanController {
         throw new Error('ID de persona inválido');
       }
 
-      const result = await this.loanService.canPersonBorrow(personId);
+      const canBorrow = await this.loanService.canPersonBorrow(personId);
       
-      this.logger.debug(`Can borrow result for person ${personId}:`, result);
+      this.logger.debug(`Person ${personId} can borrow: ${canBorrow.canBorrow}`);
       return ApiResponseDto.success(
-        result,
-        'Verificación de disponibilidad completada',
+        canBorrow,
+        'Verificación de préstamo realizada exitosamente',
         HttpStatus.OK
       );
     } catch (error: unknown) {
@@ -296,211 +449,6 @@ export class LoanController {
       this.logger.error(`Error checking if person can borrow: ${personId}`, {
         error: errorMessage,
         stack: getErrorStack(error)
-      });
-      throw new Error(errorMessage);
-    }
-  }
-
-  /**
-   * Obtener préstamos vencidos
-   * GET /api/loans/overdue
-   */
-  @Get('overdue')
-  async getOverdueLoans(
-    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
-  ): Promise<ApiResponseDto<LoanResponseDto[]>> {
-    this.logger.debug('Getting overdue loans');
-
-    try {
-      const loans = await this.loanService.getOverdueLoans(limit);
-      
-      this.logger.debug(`Found ${loans.length} overdue loans`);
-      return ApiResponseDto.success(
-        loans,
-        'Préstamos vencidos obtenidos exitosamente',
-        HttpStatus.OK
-      );
-    } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error);
-      this.logger.error('Error getting overdue loans', {
-        error: errorMessage,
-        stack: getErrorStack(error)
-      });
-      throw new Error(errorMessage);
-    }
-  }
-
-  /**
-   * Actualizar estado de préstamos vencidos
-   * POST /api/loans/overdue/update
-   */
-  @Post('overdue/update')
-  async updateOverdueLoans(): Promise<ApiResponseDto<number>> {
-    this.logger.debug('Updating overdue loans status');
-
-    try {
-      const updatedCount = await this.loanService.updateOverdueLoans();
-      
-      this.logger.debug(`Updated ${updatedCount} overdue loans`);
-      return ApiResponseDto.success(
-        updatedCount,
-        'Estado de préstamos vencidos actualizado exitosamente',
-        HttpStatus.OK
-      );
-    } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error);
-      this.logger.error('Error updating overdue loans status', {
-        error: errorMessage,
-        stack: getErrorStack(error)
-      });
-      throw new Error(errorMessage);
-    }
-  }
-
-  /**
-   * Obtener estadísticas de préstamos
-   * GET /api/loans/statistics
-   */
-  @Get('statistics')
-  async getStatistics(): Promise<ApiResponseDto<{
-    totalLoans: number;
-    activeLoans: number;
-    overdueLoans: number;
-    returnedThisMonth: number;
-    mostBorrowedResources: Array<{ resourceId: string; count: number }>;
-  }>> {
-    this.logger.debug('Getting loan statistics');
-
-    try {
-      const stats = await this.loanService.getStatistics();
-      
-      this.logger.debug('Loan statistics:', stats);
-      return ApiResponseDto.success(
-        stats,
-        'Estadísticas de préstamos obtenidas exitosamente',
-        HttpStatus.OK
-      );
-    } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error);
-      this.logger.error('Error getting loan statistics', {
-        error: errorMessage,
-        stack: getErrorStack(error)
-      });
-      throw new Error(errorMessage);
-    }
-  }
-
-  /**
-   * Renovar un préstamo
-   * POST /api/loans/:id/renew
-   */
-  @Post(':id/renew')
-  async renewLoan(
-    @Param('id') id: string,
-    @Body() body: { additionalDays?: number },
-    @CurrentUserId() userId: string,
-  ): Promise<ApiResponseDto<LoanResponseDto>> {
-    this.logger.debug(`Renewing loan: ${id}, User: ${userId}`);
-
-    try {
-      if (!MongoUtils.isValidObjectId(id)) {
-        this.logger.warn(`Invalid loan ID format: ${id}`);
-        throw new Error('ID de préstamo inválido');
-      }
-
-      const loan = await this.loanService.renewLoan(id, body.additionalDays, userId);
-      
-      this.logger.debug(`Loan renewed successfully: ${loan._id}`);
-      return ApiResponseDto.success(
-        loan,
-        'Préstamo renovado exitosamente',
-        HttpStatus.OK
-      );
-    } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error);
-      this.logger.error(`Error renewing loan: ${id}`, {
-        error: errorMessage,
-        stack: getErrorStack(error),
-        userId,
-        additionalDays: body.additionalDays
-      });
-      throw new Error(errorMessage);
-    }
-  }
-
-  /**
-   * Obtener resumen de préstamos por período
-   * GET /api/loans/summary
-   */
-  @Get('summary')
-  async getLoanSummary(
-    @Query('period') period: 'today' | 'week' | 'month' | 'year' = 'month',
-  ): Promise<ApiResponseDto<{
-    totalLoans: number;
-    newLoans: number;
-    returnedLoans: number;
-    overdueLoans: number;
-    activeLoans: number;
-    period: string;
-    dateRange: { start: string; end: string };
-  }>> {
-    this.logger.debug(`Getting loan summary for period: ${period}`);
-
-    try {
-      const summary = await this.loanService.getLoanSummary(period);
-      
-      this.logger.debug('Loan summary:', summary);
-      return ApiResponseDto.success(
-        summary,
-        'Resumen de préstamos obtenido exitosamente',
-        HttpStatus.OK
-      );
-    } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error);
-      this.logger.error(`Error getting loan summary for period: ${period}`, {
-        error: errorMessage,
-        stack: getErrorStack(error)
-      });
-      throw new Error(errorMessage);
-    }
-  }
-
-  /**
-   * Obtener préstamos por rango de fechas
-   * GET /api/loans/by-date-range
-   */
-  @Get('by-date-range')
-  async getLoansByDateRange(
-    @Query('startDate') startDate: string,
-    @Query('endDate') endDate: string,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
-    @Query('search') search?: string,
-    @Query('status') status?: string,
-  ): Promise<ApiResponseDto<PaginatedResponseDto<LoanResponseDto>>> {
-    this.logger.debug('Getting loans by date range', {
-      startDate, endDate, page, limit, search, status
-    });
-
-    try {
-      const result = await this.loanService.getLoansByDateRange(
-        startDate,
-        endDate,
-        { page, limit, search, status }
-      );
-      
-      this.logger.debug(`Found ${result.data.length} loans out of ${result.pagination.total} total`);
-      return ApiResponseDto.success(
-        result,
-        'Préstamos por rango de fechas obtenidos exitosamente',
-        HttpStatus.OK
-      );
-    } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error);
-      this.logger.error('Error getting loans by date range', {
-        error: errorMessage,
-        stack: getErrorStack(error),
-        filters: { startDate, endDate, page, limit, search, status }
       });
       throw new Error(errorMessage);
     }

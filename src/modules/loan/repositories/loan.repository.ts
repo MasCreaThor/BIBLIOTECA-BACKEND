@@ -32,12 +32,12 @@ export class LoanRepository {
           { 
             path: 'personId', 
             select: 'firstName lastName documentNumber grade fullName',
-            populate: { path: 'personType', select: 'name description' }
+            populate: { path: 'personTypeId', select: 'name description' }
           },
           { 
             path: 'resourceId', 
             select: 'title isbn author available',
-            populate: { path: 'state', select: 'name description color' }
+            populate: { path: 'stateId', select: 'name description color' }
           },
           { 
             path: 'statusId', 
@@ -62,7 +62,8 @@ export class LoanRepository {
   }
 
   /**
-   * Buscar préstamo por ID
+   * Buscar préstamo por ID con populate completo
+   * ⚠️ USAR CON CUIDADO: Este método hace populate de resourceId
    */
   async findById(id: string): Promise<LoanDocument | null> {
     try {
@@ -76,12 +77,12 @@ export class LoanRepository {
           { 
             path: 'personId', 
             select: 'firstName lastName documentNumber grade fullName',
-            populate: { path: 'personType', select: 'name description' }
+            populate: { path: 'personTypeId', select: 'name description' }
           },
           { 
             path: 'resourceId', 
             select: 'title isbn author available',
-            populate: { path: 'state', select: 'name description color' }
+            populate: { path: 'stateId', select: 'name description color' }
           },
           { 
             path: 'statusId', 
@@ -100,6 +101,70 @@ export class LoanRepository {
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       this.logger.error(`Error finding loan by ID: ${id}`, {
+        error: errorMessage,
+        stack: getErrorStack(error)
+      });
+      return null;
+    }
+  }
+
+  /**
+   * ✅ NUEVO MÉTODO: Buscar préstamo por ID SIN populate de resourceId
+   * Optimizado para operaciones donde solo necesitas los IDs (como devoluciones)
+   */
+  async findByIdForProcessing(id: string): Promise<LoanDocument | null> {
+    try {
+      if (!MongoUtils.isValidObjectId(id)) {
+        return null;
+      }
+
+      return await this.loanModel
+        .findById(id)
+        .populate([
+          { 
+            path: 'personId', 
+            select: 'firstName lastName documentNumber grade fullName',
+            populate: { path: 'personTypeId', select: 'name description' }
+          },
+          // ✅ NO hacer populate de resourceId - mantener como ObjectId
+          { 
+            path: 'statusId', 
+            select: 'name description color' 
+          },
+          { 
+            path: 'loanedBy', 
+            select: 'firstName lastName username' 
+          },
+          { 
+            path: 'returnedBy', 
+            select: 'firstName lastName username' 
+          }
+        ])
+        .exec();
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error finding loan by ID for processing: ${id}`, {
+        error: errorMessage,
+        stack: getErrorStack(error)
+      });
+      return null;
+    }
+  }
+
+  /**
+   * ✅ NUEVO MÉTODO: Buscar préstamo básico (solo ObjectIds, sin populates)
+   * Máxima eficiencia para operaciones que no necesitan datos relacionados
+   */
+  async findByIdBasic(id: string): Promise<LoanDocument | null> {
+    try {
+      if (!MongoUtils.isValidObjectId(id)) {
+        return null;
+      }
+
+      return await this.loanModel.findById(id).exec();
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error finding loan by ID (basic): ${id}`, {
         error: errorMessage,
         stack: getErrorStack(error)
       });
@@ -144,6 +209,30 @@ export class LoanRepository {
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       this.logger.error(`Error updating loan: ${id}`, {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        updateData
+      });
+      return null;
+    }
+  }
+
+  /**
+   * ✅ NUEVO MÉTODO: Actualizar préstamo sin populate
+   * Optimizado para actualizaciones donde no necesitas los datos poblados de vuelta
+   */
+  async updateBasic(id: string, updateData: Partial<Loan>): Promise<LoanDocument | null> {
+    try {
+      if (!MongoUtils.isValidObjectId(id)) {
+        return null;
+      }
+
+      return await this.loanModel
+        .findByIdAndUpdate(id, updateData, { new: true })
+        .exec();
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error updating loan (basic): ${id}`, {
         error: errorMessage,
         stack: getErrorStack(error),
         updateData
@@ -297,12 +386,12 @@ export class LoanRepository {
           { 
             path: 'personId', 
             select: 'firstName lastName documentNumber grade fullName',
-            populate: { path: 'personType', select: 'name description' }
+            populate: { path: 'personTypeId', select: 'name description' }
           },
           { 
             path: 'resourceId', 
             select: 'title isbn author available',
-            populate: { path: 'state', select: 'name description color' }
+            populate: { path: 'stateId', select: 'name description color' }
           },
           { 
             path: 'statusId', 
@@ -345,12 +434,12 @@ export class LoanRepository {
           { 
             path: 'personId', 
             select: 'firstName lastName documentNumber grade fullName',
-            populate: { path: 'personType', select: 'name description' }
+            populate: { path: 'personTypeId', select: 'name description' }
           },
           { 
             path: 'resourceId', 
             select: 'title isbn author available',
-            populate: { path: 'state', select: 'name description color' }
+            populate: { path: 'stateId', select: 'name description color' }
           },
           { 
             path: 'statusId', 
@@ -430,12 +519,12 @@ export class LoanRepository {
           { 
             path: 'personId', 
             select: 'firstName lastName documentNumber grade fullName',
-            populate: { path: 'personType', select: 'name description' }
+            populate: { path: 'personTypeId', select: 'name description' }
           },
           { 
             path: 'resourceId', 
             select: 'title isbn author available',
-            populate: { path: 'state', select: 'name description color' }
+            populate: { path: 'stateId', select: 'name description color' }
           },
           { 
             path: 'statusId', 
@@ -487,7 +576,7 @@ export class LoanRepository {
           { 
             path: 'resourceId', 
             select: 'title isbn author available',
-            populate: { path: 'state', select: 'name description color' }
+            populate: { path: 'stateId', select: 'name description color' }
           },
           { 
             path: 'statusId', 
@@ -531,7 +620,7 @@ export class LoanRepository {
           { 
             path: 'personId', 
             select: 'firstName lastName documentNumber grade fullName',
-            populate: { path: 'personType', select: 'name description' }
+            populate: { path: 'personTypeId', select: 'name description' }
           },
           { 
             path: 'statusId', 
@@ -824,12 +913,12 @@ export class LoanRepository {
             { 
               path: 'personId', 
               select: 'firstName lastName documentNumber grade fullName',
-              populate: { path: 'personType', select: 'name description' }
+              populate: { path: 'personTypeId', select: 'name description' }
             },
             { 
               path: 'resourceId', 
               select: 'title isbn author available',
-              populate: { path: 'state', select: 'name description color' }
+              populate: { path: 'stateId', select: 'name description color' }
             },
             { 
               path: 'statusId', 
@@ -891,12 +980,12 @@ export class LoanRepository {
           { 
             path: 'personId', 
             select: 'firstName lastName documentNumber grade fullName',
-            populate: { path: 'personType', select: 'name description' }
+            populate: { path: 'personTypeId', select: 'name description' }
           },
           { 
             path: 'resourceId', 
             select: 'title isbn author available',
-            populate: { path: 'state', select: 'name description color' }
+            populate: { path: 'stateId', select: 'name description color' }
           },
           { 
             path: 'statusId', 

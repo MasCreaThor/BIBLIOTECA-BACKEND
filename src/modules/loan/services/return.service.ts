@@ -42,8 +42,8 @@ export class ReturnService {
         returnDto.returnDate ? new Date(returnDto.returnDate) : undefined
       );
 
-      // Obtener el préstamo
-      const loan = await this.loanRepository.findById(returnDto.loanId);
+      // ✅ OPTIMIZACIÓN: Usar método que no hace populate de resourceId
+      const loan = await this.loanRepository.findByIdForProcessing(returnDto.loanId);
       if (!loan) {
         throw new NotFoundException('Préstamo no encontrado');
       }
@@ -91,21 +91,30 @@ export class ReturnService {
         throw new NotFoundException('No se pudo actualizar el préstamo');
       }
 
+      // ✅ SOLUCIÓN: Extraer correctamente el ID del recurso (puede estar poblado)
+      const resourceId = this.extractObjectIdString(loan.resourceId);
+      
+      this.logger.debug('Resource ID extracted:', {
+        originalResourceId: loan.resourceId,
+        extractedResourceId: resourceId,
+        resourceIdType: typeof loan.resourceId
+      });
+
       // Gestionar estado del recurso y disponibilidad
       let resourceConditionChanged = false;
       if (returnDto.resourceCondition) {
         resourceConditionChanged = await this.updateResourceCondition(
-          loan.resourceId.toString(),
+          resourceId,
           returnDto.resourceCondition
         );
       }
 
       // Actualizar disponibilidad del recurso (solo si no está perdido o dañado)
       if (returnDto.resourceCondition !== 'lost' && returnDto.resourceCondition !== 'damaged') {
-        await this.resourceRepository.updateAvailability(loan.resourceId.toString(), true);
-        this.logger.debug(`Resource ${loan.resourceId} marked as available`);
+        await this.resourceRepository.updateAvailability(resourceId, true);
+        this.logger.debug(`Resource ${resourceId} marked as available`);
       } else {
-        this.logger.debug(`Resource ${loan.resourceId} kept as unavailable due to condition: ${returnDto.resourceCondition}`);
+        this.logger.debug(`Resource ${resourceId} kept as unavailable due to condition: ${returnDto.resourceCondition}`);
       }
 
       // Generar mensaje de respuesta
@@ -169,8 +178,8 @@ export class ReturnService {
         throw new BadRequestException('Las observaciones no pueden exceder 500 caracteres');
       }
 
-      // Obtener el préstamo
-      const loan = await this.loanRepository.findById(loanId);
+      // ✅ OPTIMIZACIÓN: Usar método que no hace populate de resourceId
+      const loan = await this.loanRepository.findByIdForProcessing(loanId);
       if (!loan) {
         throw new NotFoundException('Préstamo no encontrado');
       }
@@ -202,9 +211,12 @@ export class ReturnService {
         throw new NotFoundException('No se pudo actualizar el préstamo');
       }
 
+      // ✅ SOLUCIÓN: Extraer correctamente el ID del recurso
+      const resourceId = this.extractObjectIdString(loan.resourceId);
+
       // Marcar recurso como perdido y no disponible
-      await this.updateResourceCondition(loan.resourceId.toString(), 'lost');
-      await this.resourceRepository.updateAvailability(loan.resourceId.toString(), false);
+      await this.updateResourceCondition(resourceId, 'lost');
+      await this.resourceRepository.updateAvailability(resourceId, false);
 
       this.logger.log(`Loan marked as lost successfully: ${loanId}`);
 
@@ -251,11 +263,11 @@ export class ReturnService {
         throw new BadRequestException('No se puede renovar un préstamo ya devuelto');
       }
 
+      // ✅ SOLUCIÓN: Extraer correctamente el ID de la persona
+      const personId = this.extractObjectIdString(loan.personId);
+
       // Verificar que la persona no tenga otros préstamos vencidos
-      const hasOtherOverdueLoans = await this.hasOtherOverdueLoans(
-        loan.personId.toString(), 
-        loanId
-      );
+      const hasOtherOverdueLoans = await this.hasOtherOverdueLoans(personId, loanId);
       
       if (hasOtherOverdueLoans) {
         throw new BadRequestException('No se puede renovar el préstamo porque la persona tiene otros préstamos vencidos');
@@ -440,6 +452,56 @@ export class ReturnService {
   // ===== MÉTODOS PRIVADOS =====
 
   /**
+   * ✅ NUEVA FUNCIÓN: Extraer ObjectId como string de manera segura
+   * Maneja casos donde el campo puede estar poblado o no
+   */
+  private extractObjectIdString(value: any): string {
+    try {
+      if (!value) {
+        throw new Error('Value is null or undefined');
+      }
+
+      // Si es un string, validar que sea un ObjectId válido
+      if (typeof value === 'string') {
+        if (!MongoUtils.isValidObjectId(value)) {
+          throw new Error(`Invalid ObjectId string: ${value}`);
+        }
+        return value;
+      }
+
+      // Si es un ObjectId de Mongoose
+      if (value instanceof Types.ObjectId) {
+        return value.toString();
+      }
+
+      // Si es un objeto poblado, extraer el _id
+      if (typeof value === 'object' && value._id) {
+        return this.extractObjectIdString(value._id);
+      }
+
+      // Si el objeto tiene toHexString (para ObjectIds)
+      if (value.toHexString && typeof value.toHexString === 'function') {
+        return value.toHexString();
+      }
+
+      // Fallback: intentar toString()
+      const stringValue = value.toString();
+      if (MongoUtils.isValidObjectId(stringValue)) {
+        return stringValue;
+      }
+
+      throw new Error(`Cannot extract ObjectId from value: ${JSON.stringify(value)}`);
+    } catch (error) {
+      this.logger.error('Error extracting ObjectId string', {
+        error: getErrorMessage(error),
+        value: value,
+        valueType: typeof value
+      });
+      throw new BadRequestException(`Error procesando ObjectId: ${getErrorMessage(error)}`);
+    }
+  }
+
+  /**
    * Calcular días de retraso
    */
   private calculateDaysOverdue(dueDate: Date, returnDate: Date): number {
@@ -521,16 +583,16 @@ export class ReturnService {
   private mapLoanToResponseDto(loan: LoanDocument): LoanResponseDto {
     return {
       _id: loan._id?.toString() || '',
-      personId: loan.personId?.toString() || '',
-      resourceId: loan.resourceId?.toString() || '',
+      personId: this.extractObjectIdString(loan.personId),
+      resourceId: this.extractObjectIdString(loan.resourceId),
       quantity: loan.quantity,
       loanDate: loan.loanDate,
       dueDate: loan.dueDate,
       returnedDate: loan.returnedDate,
-      statusId: loan.statusId?.toString() || '',
+      statusId: this.extractObjectIdString(loan.statusId),
       observations: loan.observations,
-      loanedBy: loan.loanedBy?.toString() || '',
-      returnedBy: loan.returnedBy?.toString(),
+      loanedBy: this.extractObjectIdString(loan.loanedBy),
+      returnedBy: loan.returnedBy ? this.extractObjectIdString(loan.returnedBy) : undefined,
       daysOverdue: loan.daysOverdue,
       isOverdue: loan.isOverdue,
       createdAt: loan.createdAt,
