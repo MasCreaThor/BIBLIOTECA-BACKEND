@@ -1,4 +1,4 @@
-// src/modules/resource/models/resource.model.ts
+// src/modules/resource/models/resource.model.ts - ACTUALIZADO CON STOCK
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -44,12 +44,21 @@ export class Resource extends Document {
   })
   publisherId?: Types.ObjectId;
 
+  // ✅ MODIFICADO: Campo de cantidad total (renombrado de volumes)
   @Prop({
     type: Number,
     min: 1,
     default: 1,
+    required: true,
   })
-  volumes?: number;
+  totalQuantity!: number;
+
+  @Prop({
+    type: Number,
+    min: 0,
+    default: 0,
+  })
+  currentLoansCount!: number;
 
   @Prop({
     required: true,
@@ -78,13 +87,12 @@ export class Resource extends Document {
   })
   googleBooksId?: string;
 
-  // ✅ CORRECCIÓN: Campo para URL de imagen de portada
   @Prop({
     type: String,
     sparse: true,
     validate: {
       validator: function(url: string) {
-        if (!url) return true; // Optional field
+        if (!url) return true;
         try {
           new URL(url);
           return true;
@@ -127,10 +135,27 @@ export class Resource extends Document {
 
   @Prop()
   updatedAt!: Date;
+
+  get availableQuantity(): number {
+    return Math.max(0, this.totalQuantity - this.currentLoansCount);
+  }
+
+  get hasStock(): boolean {
+    return this.available && this.availableQuantity > 0;
+  }
 }
 
 export type ResourceDocument = Resource & Document;
 export const ResourceSchema = SchemaFactory.createForClass(Resource);
+
+// Virtuals
+ResourceSchema.virtual('availableQuantity').get(function(this: ResourceDocument) {
+  return Math.max(0, this.totalQuantity - this.currentLoansCount);
+});
+
+ResourceSchema.virtual('hasStock').get(function(this: ResourceDocument) {
+  return this.available && (this.totalQuantity - this.currentLoansCount) > 0;
+});
 
 // Índices para optimización
 ResourceSchema.index({ title: 'text' });
@@ -141,6 +166,10 @@ ResourceSchema.index({ stateId: 1 });
 ResourceSchema.index({ locationId: 1 });
 ResourceSchema.index({ authorIds: 1 });
 ResourceSchema.index({ publisherId: 1 });
+
+ResourceSchema.index({ totalQuantity: 1 });
+ResourceSchema.index({ currentLoansCount: 1 });
+ResourceSchema.index({ available: 1, currentLoansCount: 1 });
 
 // Índice compuesto para búsquedas
 ResourceSchema.index({ 

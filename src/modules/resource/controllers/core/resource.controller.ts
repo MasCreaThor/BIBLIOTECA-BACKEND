@@ -121,8 +121,11 @@ import {
   
         this.logger.debug(`Finding resource by ID: ${id}`);
         const resource = await this.resourceService.findById(id);
+        if (!resource) {
+          throw new Error('Recurso no encontrado');
+        }
   
-        return ApiResponseDto.success(resource, 'Recurso obtenido exitosamente', HttpStatus.OK);
+        return ApiResponseDto.success(resource!, 'Recurso obtenido exitosamente', HttpStatus.OK);
       } catch (error) {
         this.logger.error(`Error finding resource by ID: ${id}`, error);
         throw error;

@@ -142,11 +142,13 @@ export class ResourceService {
     page: number = 1,
     limit: number = 20,
   ): Promise<PaginatedResponseDto<ResourceResponseDto>> {
-    const result = await this.resourceRepository.findWithFilters(filters, page, limit);
-
-    const mappedData = result.data.map((resource) => this.mapToResponseDto(resource));
-
-    return new PaginatedResponseDto(mappedData, result.total, result.page, limit);
+    const allResources = await this.resourceRepository.findWithFilters(filters);
+    const total = allResources.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedResources = allResources.slice(startIndex, endIndex);
+    const mappedData = paginatedResources.map((resource: any) => this.mapToResponseDto(resource));
+    return new PaginatedResponseDto(mappedData, total, page, limit);
   }
 
   /**
@@ -154,11 +156,9 @@ export class ResourceService {
    */
   async findByISBN(isbn: string): Promise<ResourceResponseDto> {
     const resource = await this.resourceRepository.findByISBN(isbn);
-
     if (!resource) {
-      throw new NotFoundException('Recurso no encontrado con ese ISBN');
+      throw new NotFoundException('Recurso no encontrado');
     }
-
     return this.mapToResponseDto(resource);
   }
 
@@ -331,7 +331,7 @@ export class ResourceService {
       title: resource.title,
       authorIds: resource.authorIds.map(id => id.toString()),
       publisherId: resource.publisherId?.toString(),
-      volumes: resource.volumes,
+      volumes: resource.totalQuantity,
       stateId: resource.stateId.toString(),
       locationId: resource.locationId.toString(),
       notes: resource.notes,

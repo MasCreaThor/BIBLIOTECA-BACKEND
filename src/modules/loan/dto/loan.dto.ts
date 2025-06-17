@@ -1,7 +1,4 @@
-// ================================================================
-// src/modules/loan/dto/loan.dto.ts - DTOs PRINCIPALES DE PRÉSTAMOS
-// ================================================================
-
+// src/modules/loan/dto/loan.dto.ts - ACTUALIZADO CON VALIDACIONES DE STOCK
 import {
   IsString,
   IsOptional,
@@ -20,7 +17,7 @@ import { Transform, Type } from 'class-transformer';
 import { SearchDto } from '@shared/dto';
 
 /**
- * DTO para crear un nuevo préstamo
+ * ✅ ACTUALIZADO: DTO para crear un nuevo préstamo con validación de cantidad
  */
 export class CreateLoanDto {
   @IsMongoId({ message: 'La persona debe ser un ID válido' })
@@ -32,7 +29,7 @@ export class CreateLoanDto {
   @IsOptional()
   @IsNumber({}, { message: 'La cantidad debe ser un número' })
   @Min(1, { message: 'La cantidad debe ser al menos 1' })
-  @Max(5, { message: 'No se pueden prestar más de 5 unidades' })
+  @Max(50, { message: 'No se pueden prestar más de 50 unidades' }) // Aumentado para profesores
   @Type(() => Number)
   quantity?: number;
 
@@ -44,7 +41,7 @@ export class CreateLoanDto {
 }
 
 /**
- * DTO para búsqueda y filtrado de préstamos
+ * DTO para búsqueda y filtrado de préstamos (mantenido)
  */
 export class LoanSearchDto extends SearchDto {
   @IsOptional()
@@ -107,7 +104,7 @@ export class LoanSearchDto extends SearchDto {
 }
 
 /**
- * DTO de respuesta para préstamos
+ * ✅ ACTUALIZADO: DTO de respuesta para préstamos con información de stock
  */
 export class LoanResponseDto {
   _id!: string;
@@ -128,7 +125,7 @@ export class LoanResponseDto {
   createdAt!: Date;
   updatedAt!: Date;
 
-  // Información poblada
+  // Información poblada de persona
   person?: {
     _id: string;
     firstName: string;
@@ -143,6 +140,7 @@ export class LoanResponseDto {
     };
   };
 
+  // ✅ ACTUALIZADO: Información poblada de recurso con stock
   resource?: {
     _id: string;
     title: string;
@@ -150,6 +148,9 @@ export class LoanResponseDto {
     author?: string;
     category?: string;
     available?: boolean;
+    totalQuantity?: number;        // ✅ NUEVO
+    currentLoansCount?: number;    // ✅ NUEVO
+    availableQuantity?: number;    // ✅ NUEVO
     state?: {
       _id: string;
       name: string;
@@ -188,7 +189,7 @@ export class LoanResponseDto {
 }
 
 /**
- * DTO para actualizar un préstamo
+ * DTO para actualizar un préstamo (mantenido)
  */
 export class UpdateLoanDto {
   @IsOptional()
@@ -204,4 +205,115 @@ export class UpdateLoanDto {
   @IsOptional()
   @IsMongoId({ message: 'El estado debe ser un ID válido' })
   statusId?: string;
+}
+
+/**
+ * ✅ NUEVO: DTO para validación de disponibilidad de recurso
+ */
+export class ResourceAvailabilityDto {
+  @IsMongoId({ message: 'El recurso debe ser un ID válido' })
+  resourceId!: string;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'La cantidad debe ser un número' })
+  @Min(1, { message: 'La cantidad debe ser al menos 1' })
+  @Type(() => Number)
+  requestedQuantity?: number;
+}
+
+/**
+ * ✅ NUEVO: DTO para obtener cantidad máxima por persona
+ */
+export class MaxQuantityForPersonDto {
+  @IsMongoId({ message: 'La persona debe ser un ID válido' })
+  personId!: string;
+
+  @IsMongoId({ message: 'El recurso debe ser un ID válido' })
+  resourceId!: string;
+}
+
+/**
+ * ✅ NUEVO: DTO de respuesta para cantidad máxima por persona
+ */
+export class MaxQuantityForPersonResponseDto {
+  maxQuantity!: number;
+  reason!: string;
+  personType!: string;
+  resourceInfo!: {
+    totalQuantity: number;
+    currentLoans: number;
+    availableQuantity: number;
+  };
+}
+
+/**
+ * ✅ NUEVO: DTO para validación previa de préstamo
+ */
+export class ValidateLoanDto {
+  @IsMongoId({ message: 'La persona debe ser un ID válido' })
+  personId!: string;
+
+  @IsMongoId({ message: 'El recurso debe ser un ID válido' })
+  resourceId!: string;
+
+  @IsNumber({}, { message: 'La cantidad debe ser un número' })
+  @Min(1, { message: 'La cantidad debe ser al menos 1' })
+  @Max(50, { message: 'No se pueden prestar más de 50 unidades' })
+  @Type(() => Number)
+  quantity!: number;
+}
+
+/**
+ * ✅ NUEVO: DTO de respuesta para validación de préstamo
+ */
+export class ValidateLoanResponseDto {
+  isValid!: boolean;
+  errors!: string[];
+  warnings!: string[];
+  
+  personInfo!: {
+    canBorrow: boolean;
+    activeLoans: number;
+    maxLoans: number;
+    personType: string;
+  };
+  
+  resourceInfo!: {
+    available: boolean;
+    totalQuantity: number;
+    currentLoans: number;
+    availableQuantity: number;
+  };
+  
+  quantityInfo!: {
+    requested: number;
+    maxAllowed: number;
+    reason: string;
+  };
+}
+
+/**
+ * ✅ NUEVO: DTO para estadísticas de stock
+ */
+export class StockStatisticsResponseDto {
+  totalResources!: number;
+  resourcesWithStock!: number;
+  resourcesWithoutStock!: number;
+  totalUnits!: number;
+  loanedUnits!: number;
+  availableUnits!: number;
+  
+  topLoanedResources!: Array<{
+    resourceId: string;
+    title: string;
+    currentLoans: number;
+    totalQuantity: number;
+  }>;
+  
+  lowStockResources!: Array<{
+    resourceId: string;
+    title: string;
+    availableQuantity: number;
+    totalQuantity: number;
+  }>;
 }

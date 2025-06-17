@@ -327,4 +327,11 @@ export class PersonRepository extends BaseRepositoryImpl<PersonDocument> {
   async activate(personId: string): Promise<PersonDocument | null> {
     return this.personModel.findByIdAndUpdate(personId, { active: true }, { new: true }).exec();
   }
+
+  /**
+   * Buscar persona por ID con populate
+   */
+  async findByIdWithPopulate(id: string): Promise<PersonDocument | null> {
+    return this.personModel.findById(id).populate('personTypeId').exec();
+  }
 }

@@ -1,5 +1,5 @@
 // src/modules/loan/services/overdue.service.ts
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { LoanRepository, LoanStatusRepository } from '@modules/loan/repositories';
 import { PersonTypeRepository } from '@modules/person/repositories';
 import { LoggerService } from '@shared/services/logger.service';
@@ -10,88 +10,55 @@ import {
   LoanResponseDto,
 } from '@modules/loan/dto';
 import { PaginatedResponseDto } from '@shared/dto/base.dto';
-import { LoanDocument } from '@modules/loan/models';
+import { LoanDocument, LoanStatusDocument } from '@modules/loan/models';
 import { DateUtils, getErrorMessage, getErrorStack } from '@shared/utils';
-import { ObjectId } from '@shared/types/mongoose.types';
+import { Types, Document } from 'mongoose';
 
 @Injectable()
 export class OverdueService {
+  private overdueStatusId!: Types.ObjectId;
+
   constructor(
     private readonly loanRepository: LoanRepository,
     private readonly loanStatusRepository: LoanStatusRepository,
     private readonly personTypeRepository: PersonTypeRepository,
     private readonly logger: LoggerService,
   ) {
-    this.logger.setContext('OverdueService');
+    this.initializeOverdueStatus();
+  }
+
+  private async initializeOverdueStatus(): Promise<void> {
+    try {
+      const overdueStatus = await this.loanStatusRepository.getOverdueStatus() as LoanStatusDocument;
+      if (!overdueStatus) {
+        throw new Error('No se pudo obtener el estado de préstamo vencido');
+      }
+      this.overdueStatusId = new Types.ObjectId((overdueStatus._id as string));
+    } catch (error) {
+      throw new InternalServerErrorException('Error al inicializar el estado de préstamo vencido');
+    }
   }
 
   /**
    * Buscar préstamos vencidos con filtros
    */
-  async findOverdueLoans(searchDto: OverdueSearchDto): Promise<PaginatedResponseDto<OverdueResponseDto>> {
-    const { 
-      page = 1, 
-      limit = 20, 
-      search, 
-      personId, 
-      personType,
-      minDaysOverdue,
-      dateFrom,
-      dateTo,
-      grade
-    } = searchDto;
-
+  async findOverdueLoans(page: number = 1, limit: number = 10): Promise<PaginatedResponseDto<OverdueResponseDto>> {
     try {
-      // Construir filtros base
-      const filters: any = {
-        isOverdue: true,
-      };
-
-      if (personId) {
-        filters.personId = personId;
-      }
-
-      if (dateFrom || dateTo) {
-        // Convertir fechas de vencimiento a filtro de rango
-        const today = new Date();
-        if (dateFrom) {
-          const fromDate = new Date(dateFrom);
-          filters.dateTo = fromDate; // Préstamos que vencieron después de esta fecha
-        }
-        if (dateTo) {
-          const toDate = new Date(dateTo);
-          filters.dateFrom = toDate; // Préstamos que vencieron antes de esta fecha
-        }
-      }
-
-      if (search) {
-        filters.search = search;
-      }
-
-      // Obtener préstamos vencidos base
-      const result = await this.loanRepository.findWithFilters(filters, page, limit);
-
-      // Filtrar por tipo de persona si se especifica
-      let filteredData = result.data;
-      if (personType || minDaysOverdue || grade) {
-        filteredData = this.filterOverdueLoans(result.data, {
-          personType,
-          minDaysOverdue,
-          grade,
-        });
-      }
-
-      // Mapear a OverdueResponseDto
-      const mappedData = filteredData.map((loan) => this.mapToOverdueResponseDto(loan));
-
-      return new PaginatedResponseDto(mappedData, mappedData.length, page, limit);
-    } catch (error) {
-      this.logger.error('Error finding overdue loans', {
-        error: getErrorMessage(error),
-        stack: getErrorStack(error),
-        searchDto
+      const loans = await this.loanRepository.findWithCompletePopulate({
+        statusId: this.overdueStatusId,
       });
-      throw new BadRequestException('Error al buscar préstamos vencidos: ' + getErrorMessage(error));
+      // paginación manual
+      const startIndex = (page - 1) * limit;
+      const paginated = loans.slice(startIndex, startIndex + limit);
+      const overdueLoans = paginated.map((loan: LoanDocument) => this.mapToOverdueResponseDto(loan));
+      return new PaginatedResponseDto(
+        overdueLoans,
+        loans.length,
+        page,
+        limit
+      );
+    } catch (error) {
+      throw new InternalServerErrorException('Error al buscar préstamos vencidos');
     }
   }
 
@@ -100,7 +67,7 @@ export class OverdueService {
    */
   async getOverdueStatistics(): Promise<OverdueStatsDto> {
     try {
-      const overdueLoans = await this.loanRepository.findOverdue();
+      const overdueLoans = await this.loanRepository.findWithCompletePopulate({ statusId: this.overdueStatusId });
       const gradeMap = new Map<string, number>();
       let totalDaysOverdue = 0;
       let maxDaysOverdue = 0;
@@ -212,8 +179,11 @@ export class OverdueService {
         throw new BadRequestException('Estado de préstamo "vencido" no encontrado en el sistema');
       }
 
-      const statusId = overdueStatus._id as ObjectId;
-      const updatedCount = await this.loanRepository.updateOverdueLoans(statusId, new Date());
+      const statusId = overdueStatus._id as Types.ObjectId;
+      const updatedCount = await this.loanRepository.updateManyLoans(
+        { statusId: this.overdueStatusId },
+        { statusId: statusId, updatedAt: new Date() }
+      );
 
       this.logger.log(`Updated ${updatedCount} loans to overdue status`);
 
@@ -230,17 +200,21 @@ export class OverdueService {
   /**
    * Buscar préstamos próximos a vencer
    */
-  async findLoansNearDue(daysUntilDue: number = 3): Promise<LoanResponseDto[]> {
+  async findLoansNearDue(daysThreshold: number = 3): Promise<OverdueResponseDto[]> {
     try {
-      const loans = await this.loanRepository.findLoansNearDue(daysUntilDue);
-      return loans.map((loan: LoanDocument) => this.mapLoanToResponseDto(loan));
-    } catch (error) {
-      this.logger.error('Error finding loans near due', {
-        error: getErrorMessage(error),
-        stack: getErrorStack(error),
-        daysUntilDue
+      const today = new Date();
+      const thresholdDate = new Date(today);
+      thresholdDate.setDate(today.getDate() + daysThreshold);
+
+      const loans = await this.loanRepository.findWithCompletePopulate({
+        statusId: { $ne: this.overdueStatusId },
+        returnedDate: null,
+        dueDate: { $lte: thresholdDate, $gt: today }
       });
-      throw new BadRequestException('Error al buscar préstamos próximos a vencer: ' + getErrorMessage(error));
+
+      return loans.map((loan: LoanDocument) => this.mapToOverdueResponseDto(loan));
+    } catch (error) {
+      throw new InternalServerErrorException('Error al buscar préstamos próximos a vencer');
     }
   }
 
@@ -285,8 +259,8 @@ export class OverdueService {
    */
   private calculateDaysOverdue(dueDate: Date): number {
     const today = new Date();
-    const diffTime = today.getTime() - dueDate.getTime();
-    return Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+    const diffTime = today.getTime() - new Date(dueDate).getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
   /**
@@ -303,85 +277,27 @@ export class OverdueService {
    * Mapear préstamo a DTO de respuesta vencida
    */
   private mapToOverdueResponseDto(loan: LoanDocument): OverdueResponseDto {
-    const daysOverdue = this.calculateDaysOverdue(loan.dueDate);
+    const today = new Date();
+    const dueDate = new Date(loan.dueDate);
+    const daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
     return {
-      _id: loan._id?.toString() || '',
-      personId: loan.personId?.toString() || '',
-      resourceId: loan.resourceId?.toString() || '',
+      _id: loan._id?.toString?.() ?? '',
+      personId: loan.personId?.toString?.() ?? '',
+      resourceId: loan.resourceId?.toString?.() ?? '',
       dueDate: loan.dueDate,
       daysOverdue,
-      status: loan.statusId?.toString() || '',
+      status: loan.statusId?.toString?.() ?? '',
       createdAt: loan.createdAt,
       updatedAt: loan.updatedAt,
-      severity: this.getSeverity(daysOverdue),
+      severity: this.calculateSeverity(daysOverdue)
     };
   }
 
-  /**
-   * Mapear préstamo básico a DTO de respuesta
-   */
-  private mapLoanToResponseDto(loan: LoanDocument): LoanResponseDto {
-    return {
-      _id: loan._id?.toString() || '',
-      personId: loan.personId?.toString() || '',
-      resourceId: loan.resourceId?.toString() || '',
-      quantity: loan.quantity,
-      loanDate: loan.loanDate,
-      dueDate: loan.dueDate,
-      returnedDate: loan.returnedDate,
-      statusId: loan.statusId?.toString() || '',
-      observations: loan.observations,
-      loanedBy: loan.loanedBy?.toString() || '',
-      returnedBy: loan.returnedBy?.toString(),
-      daysOverdue: this.calculateDaysOverdue(loan.dueDate),
-      isOverdue: loan.isOverdue,
-      createdAt: loan.createdAt,
-      updatedAt: loan.updatedAt,
-      person: loan.populated('personId') ? {
-        _id: (loan.personId as any)._id?.toString() || '',
-        firstName: (loan.personId as any).firstName || '',
-        lastName: (loan.personId as any).lastName || '',
-        fullName: (loan.personId as any).fullName || `${(loan.personId as any).firstName} ${(loan.personId as any).lastName}`,
-        documentNumber: (loan.personId as any).documentNumber,
-        grade: (loan.personId as any).grade,
-        personType: (loan.personId as any).personType ? {
-          _id: (loan.personId as any).personType._id?.toString() || '',
-          name: (loan.personId as any).personType.name || '',
-          description: (loan.personId as any).personType.description || '',
-        } : undefined,
-      } : undefined,
-      resource: loan.populated('resourceId') ? {
-        _id: (loan.resourceId as any)._id?.toString() || '',
-        title: (loan.resourceId as any).title || '',
-        isbn: (loan.resourceId as any).isbn,
-        author: (loan.resourceId as any).author,
-        category: (loan.resourceId as any).category,
-        available: (loan.resourceId as any).available,
-        state: (loan.resourceId as any).state ? {
-          _id: (loan.resourceId as any).state._id?.toString() || '',
-          name: (loan.resourceId as any).state.name || '',
-          description: (loan.resourceId as any).state.description || '',
-          color: (loan.resourceId as any).state.color || '',
-        } : undefined,
-      } : undefined,
-      status: loan.populated('statusId') ? {
-        _id: (loan.statusId as any)._id?.toString() || '',
-        name: (loan.statusId as any).name || '',
-        description: (loan.statusId as any).description || '',
-        color: (loan.statusId as any).color || '',
-      } : undefined,
-      loanedByUser: loan.populated('loanedBy') ? {
-        _id: (loan.loanedBy as any)._id?.toString() || '',
-        firstName: (loan.loanedBy as any).firstName || '',
-        lastName: (loan.loanedBy as any).lastName || '',
-        username: (loan.loanedBy as any).username || '',
-      } : undefined,
-      returnedByUser: loan.populated('returnedBy') ? {
-        _id: (loan.returnedBy as any)._id?.toString() || '',
-        firstName: (loan.returnedBy as any).firstName || '',
-        lastName: (loan.returnedBy as any).lastName || '',
-        username: (loan.returnedBy as any).username || '',
-      } : undefined,
-    };
+  private calculateSeverity(daysOverdue: number): 'low' | 'medium' | 'high' | 'critical' {
+    if (daysOverdue <= 3) return 'low';
+    if (daysOverdue <= 7) return 'medium';
+    if (daysOverdue <= 15) return 'high';
+    return 'critical';
   }
 }

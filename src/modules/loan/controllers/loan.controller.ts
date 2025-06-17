@@ -290,7 +290,8 @@ export class LoanController {
         throw new Error('ID de préstamo inválido');
       }
 
-      const loan = await this.loanService.renewLoan(id, body.additionalDays, userId);
+      const additionalDays = body.additionalDays ?? 0;
+      const loan = await this.loanService.renewLoan(id, additionalDays, userId);
       
       this.logger.debug(`Loan renewed successfully: ${loan._id}`);
       return ApiResponseDto.success(
@@ -436,11 +437,10 @@ export class LoanController {
         throw new Error('ID de persona inválido');
       }
 
-      const canBorrow = await this.loanService.canPersonBorrow(personId);
-      
-      this.logger.debug(`Person ${personId} can borrow: ${canBorrow.canBorrow}`);
+      const canBorrowResult = await this.loanService.canPersonBorrow(personId);
+      this.logger.debug(`Person ${personId} can borrow: ${canBorrowResult.canBorrow}`);
       return ApiResponseDto.success(
-        canBorrow,
+        canBorrowResult,
         'Verificación de préstamo realizada exitosamente',
         HttpStatus.OK
       );

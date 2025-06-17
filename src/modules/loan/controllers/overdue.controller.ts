@@ -92,7 +92,7 @@ import {
   
         this.logger.debug('Finding overdue loans with filters:', searchDto);
   
-        const result = await this.overdueService.findOverdueLoans(searchDto);
+        const result = await this.overdueService.findOverdueLoans(searchDto.page, searchDto.limit);
   
         return ApiResponseDto.success(result, 'Préstamos vencidos obtenidos exitosamente', HttpStatus.OK);
       } catch (error) {
@@ -150,7 +150,7 @@ import {
     @Get('near-due')
     async findLoansNearDue(
       @Query('days') days: string = '3',
-    ): Promise<ApiResponseDto<LoanResponseDto[]>> {
+    ): Promise<ApiResponseDto<OverdueResponseDto[]>> {
       try {
         const daysUntilDue = Math.min(parseInt(days, 10) || 3, 30); // Máximo 30 días
   
