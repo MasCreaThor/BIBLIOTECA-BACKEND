@@ -174,10 +174,15 @@ ResourceSchema.index({ available: 1, currentLoansCount: 1 });
 // Índice compuesto para búsquedas
 ResourceSchema.index({ 
   title: 'text', 
-  isbn: 'text' 
+  isbn: 'text',
+  notes: 'text'
 }, {
   weights: {
     title: 10,
-    isbn: 5
+    isbn: 5,
+    notes: 3
   }
 });
+
+// ✅ NUEVO: Índice adicional para búsqueda por autores (a través de populate)
+ResourceSchema.index({ authorIds: 1 });

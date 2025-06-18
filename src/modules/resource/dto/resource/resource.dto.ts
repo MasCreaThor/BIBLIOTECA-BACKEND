@@ -12,6 +12,7 @@ import {
   IsArray,
   Matches,
   IsUrl,
+  ValidateIf,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
@@ -30,10 +31,29 @@ export class CreateResourceDto {
 
   @IsOptional()
   @IsArray({ message: 'Los autores deben ser un array' })
+  @Transform(({ value }: { value: any }) => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      // Filtrar solo IDs válidos de MongoDB
+      return value.filter(id => 
+        id && 
+        typeof id === 'string' && 
+        id.trim() !== '' && 
+        /^[0-9a-fA-F]{24}$/.test(id.trim())
+      );
+    }
+    return [];
+  })
   @IsMongoId({ each: true, message: 'Cada autor debe ser un ID válido' })
   authorIds?: string[];
 
   @IsOptional()
+  @Transform(({ value }: { value: any }) => {
+    if (!value || value === '' || value === 'null' || value === 'undefined') {
+      return undefined;
+    }
+    return value;
+  })
   @IsMongoId({ message: 'La editorial debe ser un ID válido' })
   publisherId?: string;
 
@@ -50,6 +70,12 @@ export class CreateResourceDto {
   @IsMongoId({ message: 'La ubicación debe ser un ID válido' })
   locationId!: string;
 
+  @IsNumber({}, { message: 'La cantidad total debe ser un número' })
+  @Min(1, { message: 'La cantidad total debe ser mayor a 0' })
+  @Max(10000, { message: 'La cantidad total no puede exceder 10,000 unidades' })
+  @Type(() => Number)
+  totalQuantity!: number;
+
   @IsOptional()
   @IsString({ message: 'Las notas deben ser un string' })
   @MaxLength(500, { message: 'Las notas no deben exceder 500 caracteres' })
@@ -58,6 +84,13 @@ export class CreateResourceDto {
 
   @IsOptional()
   @IsString({ message: 'El ISBN debe ser un string' })
+  @Transform(({ value }: { value: any }) => {
+    if (!value || value === '' || value === 'null' || value === 'undefined') {
+      return undefined;
+    }
+    return value?.trim();
+  })
+  @ValidateIf((o) => o.isbn !== undefined && o.isbn !== '')
   @Matches(/^(?:ISBN(?:-1[03])?:? )?(?=[0-9X]{10}$|(?=(?:[0-9]+[- ]){3})[- 0-9X]{13}$|97[89][0-9]{10}$|(?=(?:[0-9]+[- ]){4})[- 0-9]{17}$)(?:97[89][- ]?)?[0-9]{1,5}[- ]?[0-9]+[- ]?[0-9]+[- ]?[0-9X]$/, {
     message: 'El ISBN debe tener un formato válido'
   })
@@ -91,10 +124,29 @@ export class UpdateResourceDto {
 
   @IsOptional()
   @IsArray({ message: 'Los autores deben ser un array' })
+  @Transform(({ value }: { value: any }) => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      // Filtrar solo IDs válidos de MongoDB
+      return value.filter(id => 
+        id && 
+        typeof id === 'string' && 
+        id.trim() !== '' && 
+        /^[0-9a-fA-F]{24}$/.test(id.trim())
+      );
+    }
+    return [];
+  })
   @IsMongoId({ each: true, message: 'Cada autor debe ser un ID válido' })
   authorIds?: string[];
 
   @IsOptional()
+  @Transform(({ value }: { value: any }) => {
+    if (!value || value === '' || value === 'null' || value === 'undefined') {
+      return undefined;
+    }
+    return value;
+  })
   @IsMongoId({ message: 'La editorial debe ser un ID válido' })
   publisherId?: string;
 
@@ -130,6 +182,21 @@ export class UpdateResourceDto {
   @MaxLength(500, { message: 'La URL de imagen no debe exceder 500 caracteres' })
   @Transform(({ value }: { value: string }) => value?.trim())
   coverImageUrl?: string;
+
+  // ✅ AGREGADO: Validación mejorada del ISBN para actualizaciones
+  @IsOptional()
+  @IsString({ message: 'El ISBN debe ser un string' })
+  @Transform(({ value }: { value: any }) => {
+    if (!value || value === '' || value === 'null' || value === 'undefined') {
+      return undefined;
+    }
+    return value?.trim();
+  })
+  @ValidateIf((o) => o.isbn !== undefined && o.isbn !== '')
+  @Matches(/^(?:ISBN(?:-1[03])?:? )?(?=[0-9X]{10}$|(?=(?:[0-9]+[- ]){3})[- 0-9X]{13}$|97[89][0-9]{10}$|(?=(?:[0-9]+[- ]){4})[- 0-9]{17}$)(?:97[89][- ]?)?[0-9]{1,5}[- ]?[0-9]+[- ]?[0-9]+[- ]?[0-9X]$/, {
+    message: 'El ISBN debe tener un formato válido'
+  })
+  isbn?: string;
 }
 
 export class ResourceResponseDto {
@@ -147,6 +214,56 @@ export class ResourceResponseDto {
   isbn?: string;
   googleBooksId?: string;
   coverImageUrl?: string;
+  
+  // ✅ CAMPOS DE CANTIDAD PARA GESTIÓN DE PRÉSTAMOS
+  totalQuantity?: number;
+  currentLoansCount?: number;
+  availableQuantity?: number;
+  hasStock?: boolean;
+  
+  // ✅ CAMPOS ADICIONALES PARA GESTIÓN
+  totalLoans?: number;
+  lastLoanDate?: Date;
+  
+  // ✅ CAMPOS POPULADOS PARA INFORMACIÓN COMPLETA
+  type?: {
+    _id: string;
+    name: string;
+    description: string;
+  };
+  
+  category?: {
+    _id: string;
+    name: string;
+    description: string;
+    color: string;
+  };
+  
+  authors?: Array<{
+    _id: string;
+    name: string;
+    biography?: string;
+  }>;
+  
+  publisher?: {
+    _id: string;
+    name: string;
+    description?: string;
+  };
+  
+  location?: {
+    _id: string;
+    name: string;
+    description: string;
+    code?: string;
+  };
+  
+  state?: {
+    _id: string;
+    name: string;
+    description: string;
+    color: string;
+  };
   
   createdAt!: Date;
   updatedAt!: Date;

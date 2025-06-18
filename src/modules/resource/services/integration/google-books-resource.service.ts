@@ -41,7 +41,7 @@ export class GoogleBooksResourceService {
    * Crear recurso desde Google Books
    */
   async createFromGoogleBooks(createDto: ResourceFromGoogleBooksDto): Promise<ResourceResponseDto> {
-    const { googleBooksId, categoryId, locationId, volumes, notes } = createDto;
+    const { googleBooksId, categoryId, locationId, volumes, notes, totalQuantity } = createDto;
 
     try {
       // Obtener información del libro desde Google Books
@@ -107,7 +107,7 @@ export class GoogleBooksResourceService {
       // ✅ DEBUG: Log para verificar URL extraída
       console.log('🖼️ Extracted cover image URL:', coverImageUrl);
 
-      // ✅ CORRECCIÓN: Crear el recurso con coverImageUrl (no imageUrl)
+      // ✅ CORRECCIÓN: Crear el recurso con coverImageUrl (no imageUrl) y totalQuantity del DTO
       const createResourceDto: CreateResourceDto = {
         typeId: (bookType._id as any).toString(),
         categoryId,
@@ -117,6 +117,7 @@ export class GoogleBooksResourceService {
         volumes: volumes || 1,
         stateId: (goodState._id as any).toString(),
         locationId,
+        totalQuantity: totalQuantity || 1,
         notes,
         isbn: isbn || undefined,
         googleBooksId,
@@ -128,7 +129,8 @@ export class GoogleBooksResourceService {
         title: createResourceDto.title,
         googleBooksId: createResourceDto.googleBooksId,
         coverImageUrl: createResourceDto.coverImageUrl,
-        hasCoverImage: !!createResourceDto.coverImageUrl
+        hasCoverImage: !!createResourceDto.coverImageUrl,
+        totalQuantity: createResourceDto.totalQuantity
       });
 
       const resource = await this.resourceService.create(createResourceDto);
@@ -139,7 +141,8 @@ export class GoogleBooksResourceService {
         title: resource.title,
         googleBooksId: resource.googleBooksId,
         coverImageUrl: resource.coverImageUrl,
-        hasCoverImage: !!resource.coverImageUrl
+        hasCoverImage: !!resource.coverImageUrl,
+        totalQuantity: resource.totalQuantity
       });
 
       this.logger.log(`Resource created from Google Books: ${bookData.title}${coverImageUrl ? ' with cover image' : ''}`);

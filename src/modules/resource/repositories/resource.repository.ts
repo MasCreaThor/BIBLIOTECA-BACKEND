@@ -57,6 +57,7 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
       const query: any = {};
 
       if (filters.search) {
+        // ✅ MEJORADO: Búsqueda por texto en título, ISBN y notas
         query.$text = { $search: filters.search };
       }
 
@@ -95,7 +96,7 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
         }
       }
 
-      return await this.resourceModel
+      let resources = await this.resourceModel
         .find(query)
         .populate([
           { path: 'typeId', select: 'name description' },
@@ -107,6 +108,26 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
         ])
         .sort({ title: 1 })
         .exec();
+
+      // ✅ NUEVO: Filtro adicional por autores si hay búsqueda
+      if (filters.search && resources.length > 0) {
+        const searchTerm = filters.search.toLowerCase();
+        resources = resources.filter(resource => {
+          // Buscar en título, ISBN, notas y autores
+          const titleMatch = resource.title.toLowerCase().includes(searchTerm);
+          const isbnMatch = resource.isbn?.toLowerCase().includes(searchTerm);
+          const notesMatch = resource.notes?.toLowerCase().includes(searchTerm);
+          
+          // Buscar en autores populados
+          const authorMatch = resource.authorIds?.some((author: any) => 
+            author.name?.toLowerCase().includes(searchTerm)
+          );
+
+          return titleMatch || isbnMatch || notesMatch || authorMatch;
+        });
+      }
+
+      return resources;
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       this.logger.error('Error finding resources with filters', {

@@ -169,6 +169,20 @@ import {
           throw new Error('ID de recurso inválido');
         }
   
+        // ✅ DEBUG: Log para ver qué datos se están recibiendo
+        this.logger.debug(`Received update data for resource ${id}:`, {
+          title: updateResourceDto.title,
+          categoryId: updateResourceDto.categoryId,
+          locationId: updateResourceDto.locationId,
+          stateId: updateResourceDto.stateId,
+          authorIds: updateResourceDto.authorIds,
+          publisherId: updateResourceDto.publisherId,
+          volumes: updateResourceDto.volumes,
+          notes: updateResourceDto.notes,
+          available: updateResourceDto.available,
+          coverImageUrl: updateResourceDto.coverImageUrl,
+        });
+  
         this.logger.log(`Updating resource: ${id}`);
         const resource = await this.resourceService.update(id, updateResourceDto);
   
@@ -204,6 +218,43 @@ import {
         );
       } catch (error) {
         this.logger.error(`Error updating resource availability: ${id}`, error);
+        throw error;
+      }
+    }
+  
+    /**
+     * ✅ NUEVO: Verificar disponibilidad del recurso
+     * GET /api/resources/:id/check-availability
+     */
+    @Get(':id/check-availability')
+    async checkAvailability(@Param('id') id: string): Promise<ApiResponseDto<any>> {
+      try {
+        if (!MongoUtils.isValidObjectId(id)) {
+          this.logger.warn(`Invalid resource ID format: ${id}`);
+          throw new Error('ID de recurso inválido');
+        }
+  
+        this.logger.debug(`Checking resource availability: ${id}`);
+        const resource = await this.resourceService.findById(id);
+        
+        if (!resource) {
+          throw new Error('Recurso no encontrado');
+        }
+  
+        const availability = {
+          resourceId: id,
+          available: resource.available,
+          totalQuantity: resource.totalQuantity || 0,
+          currentLoans: resource.currentLoansCount || 0,
+          availableQuantity: (resource.totalQuantity || 0) - (resource.currentLoansCount || 0),
+          hasStock: (resource.totalQuantity || 0) > (resource.currentLoansCount || 0),
+          canLoan: resource.available && (resource.totalQuantity || 0) > (resource.currentLoansCount || 0),
+          maxConcurrentLoans: resource.totalQuantity || 0,
+        };
+  
+        return ApiResponseDto.success(availability, 'Disponibilidad verificada exitosamente', HttpStatus.OK);
+      } catch (error) {
+        this.logger.error(`Error checking resource availability: ${id}`, error);
         throw error;
       }
     }
