@@ -872,7 +872,10 @@ export class LoanService {
         hasResource: !!l.resource,
         hasResourceId: !!l.resourceId,
         personType: typeof l.person,
-        resourceType: typeof l.resource
+        resourceType: typeof l.resource,
+        resourceFields: l.resource ? Object.keys(l.resource) : [],
+        resourceAuthor: l.resource?.author,
+        resourceCategory: l.resource?.categoryId?.name || l.resource?.category
       });
       
       // ✅ CORRECCIÓN: Manejar casos donde los campos poblados podrían ser null
@@ -895,7 +898,7 @@ export class LoanService {
         title: l.resource.title || '',
         isbn: l.resource.isbn || undefined,
         author: l.resource.author || undefined,
-        category: l.resource.category || undefined,
+        category: l.resource.categoryId?.name || l.resource.category || undefined,
         available: l.resource.available || false,
         totalQuantity: l.resource.totalQuantity || 0,
         currentLoansCount: l.resource.currentLoansCount || 0,
@@ -905,6 +908,11 @@ export class LoanService {
           name: l.resource.stateId.name || '',
           description: l.resource.stateId.description || '',
           color: l.resource.stateId.color || '#000000'
+        } : undefined,
+        location: l.resource.locationId ? {
+          _id: l.resource.locationId._id?.toString() || '',
+          name: l.resource.locationId.name || '',
+          description: l.resource.locationId.description || ''
         } : undefined
       } : undefined;
 

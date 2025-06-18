@@ -39,12 +39,11 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
           },
           { 
             path: 'resourceId', 
-            select: 'title isbn totalQuantity currentLoansCount available typeId categoryId stateId',
-            populate: [
-              { path: 'typeId', select: 'name description' },
-              { path: 'categoryId', select: 'name description color' },
-              { path: 'stateId', select: 'name description color' }
-            ]
+            select: 'title isbn author totalQuantity currentLoansCount available typeId categoryId stateId locationId',
+            populate: {
+              path: 'locationId',
+              select: 'name description code'
+            }
           },
           { 
             path: 'statusId', 
@@ -128,12 +127,11 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
           },
           { 
             path: 'resourceId', 
-            select: 'title isbn totalQuantity currentLoansCount available typeId categoryId stateId',
-            populate: [
-              { path: 'typeId', select: 'name description' },
-              { path: 'categoryId', select: 'name description color' },
-              { path: 'stateId', select: 'name description color' }
-            ]
+            select: 'title isbn author totalQuantity currentLoansCount available typeId categoryId stateId locationId',
+            populate: {
+              path: 'locationId',
+              select: 'name description code'
+            }
           },
           { 
             path: 'statusId', 
@@ -211,7 +209,11 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
           },
           { 
             path: 'resourceId', 
-            select: 'title isbn totalQuantity currentLoansCount available' 
+            select: 'title isbn author totalQuantity currentLoansCount available typeId categoryId stateId locationId',
+            populate: {
+              path: 'locationId',
+              select: 'name description code'
+            }
           },
           { 
             path: 'statusId', 
@@ -308,7 +310,11 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         .populate([
           { 
             path: 'resourceId', 
-            select: 'title isbn totalQuantity currentLoansCount available' 
+            select: 'title isbn totalQuantity currentLoansCount available typeId categoryId stateId locationId',
+            populate: {
+              path: 'locationId',
+              select: 'name description code'
+            }
           },
           { 
             path: 'statusId', 
@@ -514,7 +520,11 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         .populate([
           { 
             path: 'resourceId', 
-            select: 'title isbn totalQuantity currentLoansCount available' 
+            select: 'title isbn author totalQuantity currentLoansCount available typeId categoryId stateId locationId',
+            populate: {
+              path: 'locationId',
+              select: 'name description code'
+            }
           },
           { 
             path: 'statusId', 
@@ -547,7 +557,11 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
           },
           { 
             path: 'resourceId', 
-            select: 'title isbn totalQuantity currentLoansCount available' 
+            select: 'title isbn author totalQuantity currentLoansCount available typeId categoryId stateId locationId',
+            populate: {
+              path: 'locationId',
+              select: 'name description code'
+            }
           },
           { 
             path: 'statusId', 
