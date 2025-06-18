@@ -93,6 +93,32 @@ export class UserController {
   }
 
   /**
+   * ✅ CORREGIDO: Obtener estadísticas de usuarios
+   * GET /api/users/stats
+   */
+  @Get('stats')
+  async getStatistics(): Promise<
+    ApiResponseDto<{
+      total: number;
+      active: number;
+      inactive: number;
+      admins: number;
+      librarians: number;
+    }>
+  > {
+    try {
+      this.logger.debug('Getting user statistics');
+
+      const stats = await this.userService.getStatistics();
+
+      return ApiResponseDto.success(stats, 'Estadísticas obtenidas exitosamente', HttpStatus.OK);
+    } catch (error) {
+      this.logger.error('Error getting user statistics', error);
+      throw error;
+    }
+  }
+
+  /**
    * Obtener usuario por ID
    * GET /api/users/:id
    */
@@ -207,32 +233,6 @@ export class UserController {
       return ApiResponseDto.success(null, 'Usuario eliminado exitosamente', HttpStatus.OK);
     } catch (error) {
       this.logger.error(`Error deleting user: ${id}`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtener estadísticas de usuarios
-   * GET /api/users/statistics
-   */
-  @Get('stats/summary')
-  async getStatistics(): Promise<
-    ApiResponseDto<{
-      total: number;
-      active: number;
-      inactive: number;
-      admins: number;
-      librarians: number;
-    }>
-  > {
-    try {
-      this.logger.debug('Getting user statistics');
-
-      const stats = await this.userService.getStatistics();
-
-      return ApiResponseDto.success(stats, 'Estadísticas obtenidas exitosamente', HttpStatus.OK);
-    } catch (error) {
-      this.logger.error('Error getting user statistics', error);
       throw error;
     }
   }

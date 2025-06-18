@@ -155,41 +155,85 @@ export class LoanService {
     this.logger.debug('Finding all loans with filters', searchDto);
 
     try {
-      const { page = 1, limit = 20, search, personId, resourceId, statusId, isOverdue } = searchDto;
+      const { page = 1, limit = 20, search, personId, resourceId, statusId, status, isOverdue, dateFrom, dateTo } = searchDto;
 
-      // Construir filtros
-      const filters: any = {};
+      // Construir filtros adicionales
+      const additionalFilter: any = {};
 
       if (personId && MongoUtils.isValidObjectId(personId)) {
-        filters.personId = new Types.ObjectId(personId);
+        additionalFilter.personId = new Types.ObjectId(personId);
       }
 
       if (resourceId && MongoUtils.isValidObjectId(resourceId)) {
-        filters.resourceId = new Types.ObjectId(resourceId);
+        additionalFilter.resourceId = new Types.ObjectId(resourceId);
       }
 
+      // ✅ CORRECCIÓN: Manejar filtro por statusId (ObjectId)
       if (statusId && MongoUtils.isValidObjectId(statusId)) {
-        filters.statusId = new Types.ObjectId(statusId);
+        additionalFilter.statusId = new Types.ObjectId(statusId);
       }
 
+      // ✅ CORRECCIÓN: Manejar filtro por status (string) - buscar por nombre del estado
+      if (status && ['active', 'returned', 'overdue', 'lost'].includes(status)) {
+        // Para el filtro por status, necesitamos buscar el estado por nombre
+        const statusDoc = await this.loanStatusRepository.findByName(status);
+        if (statusDoc) {
+          additionalFilter.statusId = statusDoc._id;
+        }
+      }
+
+      // ✅ CORRECCIÓN: Manejar filtro de préstamos vencidos
       if (isOverdue === true) {
-        filters.dueDate = { $lt: new Date() };
-        filters.returnedDate = null;
+        additionalFilter.dueDate = { $lt: new Date() };
+        additionalFilter.returnedDate = null;
       } else if (isOverdue === false) {
-        filters.$or = [
+        additionalFilter.$or = [
           { returnedDate: { $ne: null } },
           { dueDate: { $gte: new Date() } }
         ];
       }
 
-      // Búsqueda por texto (implementar en repository si es necesario)
-      if (search) {
-        // Para búsqueda por texto, necesitaríamos agregar populate en la consulta
-        this.logger.debug(`Text search requested: ${search}`);
+      // ✅ CORRECCIÓN: Filtros de fecha mejorados
+      if (dateFrom || dateTo) {
+        additionalFilter.loanDate = {};
+        if (dateFrom) {
+          additionalFilter.loanDate.$gte = new Date(dateFrom + 'T00:00:00.000Z');
+        }
+        if (dateTo) {
+          additionalFilter.loanDate.$lte = new Date(dateTo + 'T23:59:59.999Z');
+        }
       }
 
-      // ✅ CORRECCIÓN: Obtener todos los préstamos primero
-      const allLoans = await this.loanRepository.findWithCompletePopulate(filters);
+      this.logger.debug('Applied filters:', additionalFilter);
+
+      let allLoans: any[];
+
+      // ✅ NUEVO: Usar búsqueda por texto si se proporciona search
+      if (search && search.trim()) {
+        this.logger.debug(`Using text search for term: ${search}`);
+        allLoans = await this.loanRepository.findWithTextSearch(search.trim(), additionalFilter);
+        this.logger.debug(`Text search returned ${allLoans.length} loans`);
+        if (allLoans.length > 0) {
+          this.logger.debug(`First loan structure (text search):`, {
+            hasPerson: !!allLoans[0].person,
+            hasResource: !!allLoans[0].resource,
+            personName: allLoans[0].person?.fullName || 'N/A',
+            resourceTitle: allLoans[0].resource?.title || 'N/A'
+          });
+        }
+      } else {
+        // ✅ MANTENIDO: Búsqueda normal sin texto
+        allLoans = await this.loanRepository.findWithCompletePopulate(additionalFilter);
+        this.logger.debug(`Normal search returned ${allLoans.length} loans`);
+        if (allLoans.length > 0) {
+          this.logger.debug(`First loan structure (normal search):`, {
+            hasPerson: !!allLoans[0].person,
+            hasResource: !!allLoans[0].resource,
+            personName: allLoans[0].person?.fullName || 'N/A',
+            resourceTitle: allLoans[0].resource?.title || 'N/A'
+          });
+        }
+      }
       
       // ✅ CORRECCIÓN: Aplicar paginación manual de forma más robusta
       const total = allLoans.length;
@@ -199,74 +243,176 @@ export class LoanService {
       const endIndex = startIndex + limit;
       const paginatedLoans = allLoans.slice(startIndex, endIndex);
 
-      const loanDtos = paginatedLoans.map(loan => this.transformToResponseDto(loan));
+      this.logger.debug(`Found ${total} loans, returning ${paginatedLoans.length} for page ${currentPage}`);
 
       return {
-        data: loanDtos,
+        data: paginatedLoans.map(loan => this.transformToResponseDto(loan)),
         pagination: {
-          total,
           page: currentPage,
-          totalPages,
           limit,
+          total,
+          totalPages,
           hasNextPage: currentPage < totalPages,
-          hasPrevPage: currentPage > 1,
-        },
+          hasPrevPage: currentPage > 1
+        }
       };
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       this.logger.error('Error finding loans', {
         error: errorMessage,
         stack: getErrorStack(error),
-        searchDto
+        filters: searchDto
       });
-      
-      // ✅ CORRECCIÓN: Retornar respuesta vacía en lugar de lanzar error
-      return {
-        data: [],
-        pagination: {
-          total: 0,
-          page: 1,
-          totalPages: 0,
-          limit: 20,
-          hasNextPage: false,
-          hasPrevPage: false,
-        },
-      };
+      throw error;
     }
   }
 
   /**
-   * ✅ NUEVO: Obtener estadísticas de préstamos
+   * ✅ MEJORADO: Obtener estadísticas completas de préstamos
    */
   async getStatistics(): Promise<any> {
-    this.logger.debug('Getting loan statistics');
+    this.logger.debug('Getting comprehensive loan statistics');
 
     try {
-      const [activeLoans, overdueLoans, totalLoans] = await Promise.all([
-        this.loanRepository.findActiveLoans(),
-        this.loanRepository.findWithCompletePopulate({ 
-          returnedDate: null, 
-          dueDate: { $lt: new Date() } 
-        }),
-        this.loanRepository.count({})
-      ]);
+      // Obtener todos los préstamos con datos poblados para análisis completo
+      const allLoans = await this.loanRepository.findWithCompletePopulate({});
+      
+      // Calcular estadísticas básicas
+      const totalLoans = allLoans.length;
+      const activeLoans = allLoans.filter(loan => loan.status?.name === 'active').length;
+      const returnedLoans = allLoans.filter(loan => loan.status?.name === 'returned').length;
+      const overdueLoans = allLoans.filter(loan => loan.isOverdue).length;
+      const lostLoans = allLoans.filter(loan => loan.status?.name === 'lost').length;
 
-      const returnedThisMonth = await this.loanRepository.count({
-        returnedDate: { 
-          $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) 
+      // Calcular duración promedio de préstamos devueltos
+      const returnedLoansWithDuration = allLoans.filter(loan => 
+        loan.status?.name === 'returned' && loan.returnedDate
+      );
+      
+      let averageLoanDuration = 0;
+      if (returnedLoansWithDuration.length > 0) {
+        const totalDuration = returnedLoansWithDuration.reduce((acc, loan) => {
+          const loanDate = new Date(loan.loanDate);
+          const returnDate = new Date(loan.returnedDate!);
+          const duration = Math.ceil((returnDate.getTime() - loanDate.getTime()) / (1000 * 60 * 60 * 24));
+          return acc + duration;
+        }, 0);
+        averageLoanDuration = Math.round(totalDuration / returnedLoansWithDuration.length);
+      }
+
+      // Calcular recursos más prestados
+      const resourceBorrowCount = new Map<string, { title: string; count: number; author?: string }>();
+      allLoans.forEach(loan => {
+        if (loan.resource) {
+          const resourceId = loan.resource._id.toString();
+          const existing = resourceBorrowCount.get(resourceId);
+          if (existing) {
+            existing.count++;
+          } else {
+            resourceBorrowCount.set(resourceId, {
+              title: loan.resource.title,
+              count: 1,
+              author: loan.resource.author
+            });
+          }
         }
       });
 
-      return {
+      const topBorrowedResources = Array.from(resourceBorrowCount.entries())
+        .map(([resourceId, data]) => ({
+          resourceId,
+          title: data.title,
+          author: data.author,
+          count: data.count
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      // Calcular prestatarios más activos
+      const borrowerCount = new Map<string, { fullName: string; count: number; activeLoans: number; overdueLoans: number }>();
+      allLoans.forEach(loan => {
+        if (loan.person) {
+          const personId = loan.person._id.toString();
+          const existing = borrowerCount.get(personId);
+          if (existing) {
+            existing.count++;
+            if (loan.status?.name === 'active') existing.activeLoans++;
+            if (loan.isOverdue) existing.overdueLoans++;
+          } else {
+            borrowerCount.set(personId, {
+              fullName: loan.person.fullName,
+              count: 1,
+              activeLoans: loan.status?.name === 'active' ? 1 : 0,
+              overdueLoans: loan.isOverdue ? 1 : 0
+            });
+          }
+        }
+      });
+
+      const topBorrowers = Array.from(borrowerCount.entries())
+        .map(([personId, data]) => ({
+          personId,
+          fullName: data.fullName,
+          count: data.count,
+          activeLoans: data.activeLoans,
+          overdueLoans: data.overdueLoans
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      // Calcular distribución por estados
+      const statusDistribution = [
+        { status: 'Activos', count: activeLoans, percentage: totalLoans > 0 ? Math.round((activeLoans / totalLoans) * 100) : 0, color: '#007bff' },
+        { status: 'Devueltos', count: returnedLoans, percentage: totalLoans > 0 ? Math.round((returnedLoans / totalLoans) * 100) : 0, color: '#28a745' },
+        { status: 'Vencidos', count: overdueLoans, percentage: totalLoans > 0 ? Math.round((overdueLoans / totalLoans) * 100) : 0, color: '#dc3545' },
+        { status: 'Perdidos', count: lostLoans, percentage: totalLoans > 0 ? Math.round((lostLoans / totalLoans) * 100) : 0, color: '#ffc107' }
+      ];
+
+      // Calcular devoluciones del mes actual
+      const currentMonth = new Date();
+      const firstDayOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+      const returnedThisMonth = allLoans.filter(loan => 
+        loan.status?.name === 'returned' && 
+        loan.returnedDate && 
+        new Date(loan.returnedDate) >= firstDayOfMonth
+      ).length;
+
+      // Calcular tasa de devolución a tiempo
+      const onTimeReturns = returnedLoansWithDuration.filter(loan => {
+        const returnDate = new Date(loan.returnedDate!);
+        const dueDate = new Date(loan.dueDate);
+        return returnDate <= dueDate;
+      }).length;
+
+      const onTimeReturnRate = returnedLoans > 0 ? Math.round((onTimeReturns / returnedLoans) * 100) : 0;
+
+      const stats = {
         totalLoans,
-        activeLoans: activeLoans.length,
-        overdueLoans: overdueLoans.length,
+        activeLoans,
+        returnedLoans,
+        overdueLoans,
+        lostLoans,
+        averageLoanDuration,
+        onTimeReturnRate,
         returnedThisMonth,
-        mostBorrowedResources: [] // Implementar agregación si es necesario
+        topBorrowedResources,
+        topBorrowers,
+        statusDistribution
       };
+
+      this.logger.debug('Comprehensive loan statistics calculated:', {
+        totalLoans,
+        activeLoans,
+        returnedLoans,
+        overdueLoans,
+        averageLoanDuration,
+        onTimeReturnRate
+      });
+
+      return stats;
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
-      this.logger.error('Error getting loan statistics', {
+      this.logger.error('Error getting comprehensive loan statistics', {
         error: errorMessage,
         stack: getErrorStack(error)
       });
@@ -382,10 +528,10 @@ export class LoanService {
       return {
         data: loanDtos,
         pagination: {
-          total,
           page,
-          totalPages,
           limit,
+          total,
+          totalPages,
           hasNextPage: page < totalPages,
           hasPrevPage: page > 1,
         },
@@ -605,7 +751,7 @@ export class LoanService {
   }
 
   /**
-   * ✅ NUEVO: Obtener estadísticas de stock
+   * ✅ MEJORADO: Obtener estadísticas completas de stock
    */
   async getStockStatistics(): Promise<{
     totalResources: number;
@@ -614,18 +760,86 @@ export class LoanService {
     totalUnits: number;
     loanedUnits: number;
     availableUnits: number;
+    topLoanedResources: Array<{
+      resourceId: string;
+      title: string;
+      currentLoans: number;
+      totalQuantity: number;
+    }>;
+    lowStockResources: Array<{
+      resourceId: string;
+      title: string;
+      availableQuantity: number;
+      totalQuantity: number;
+    }>;
   }> {
-    this.logger.debug('Getting stock statistics');
+    this.logger.debug('Getting comprehensive stock statistics');
 
     try {
-      // ✅ CORRECCIÓN: Usar el repositorio de recursos para obtener estadísticas de stock
-      const stats = await this.resourceRepository.getStockStatistics();
+      // Obtener todos los recursos usando el método disponible
+      const allResources = await this.resourceRepository.findWithFilters({});
       
-      this.logger.debug('Stock statistics obtained:', stats);
+      // Calcular estadísticas básicas
+      const totalResources = allResources.length;
+      const resourcesWithStock = allResources.filter((r: any) => (r.totalQuantity || 0) > 0).length;
+      const resourcesWithoutStock = totalResources - resourcesWithStock;
+      
+      // Calcular unidades totales
+      const totalUnits = allResources.reduce((acc: number, r: any) => acc + (r.totalQuantity || 0), 0);
+      const loanedUnits = allResources.reduce((acc: number, r: any) => acc + (r.currentLoansCount || 0), 0);
+      const availableUnits = totalUnits - loanedUnits;
+
+      // Obtener recursos más prestados
+      const topLoanedResources = allResources
+        .filter((r: any) => (r.currentLoansCount || 0) > 0)
+        .map((r: any) => ({
+          resourceId: r._id.toString(),
+          title: r.title,
+          currentLoans: r.currentLoansCount || 0,
+          totalQuantity: r.totalQuantity || 0
+        }))
+        .sort((a: any, b: any) => b.currentLoans - a.currentLoans)
+        .slice(0, 10);
+
+      // Obtener recursos con bajo stock (menos del 20% disponible)
+      const lowStockResources = allResources
+        .filter((r: any) => {
+          const totalQty = r.totalQuantity || 0;
+          const availableQty = r.availableQuantity || 0;
+          return totalQty > 0 && availableQty > 0 && (availableQty / totalQty) < 0.2;
+        })
+        .map((r: any) => ({
+          resourceId: r._id.toString(),
+          title: r.title,
+          availableQuantity: r.availableQuantity || 0,
+          totalQuantity: r.totalQuantity || 0
+        }))
+        .sort((a: any, b: any) => (a.availableQuantity / a.totalQuantity) - (b.availableQuantity / b.totalQuantity))
+        .slice(0, 10);
+
+      const stats = {
+        totalResources,
+        resourcesWithStock,
+        resourcesWithoutStock,
+        totalUnits,
+        loanedUnits,
+        availableUnits,
+        topLoanedResources,
+        lowStockResources
+      };
+
+      this.logger.debug('Comprehensive stock statistics calculated:', {
+        totalResources,
+        resourcesWithStock,
+        totalUnits,
+        loanedUnits,
+        availableUnits
+      });
+
       return stats;
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
-      this.logger.error('Error getting stock statistics', {
+      this.logger.error('Error getting comprehensive stock statistics', {
         error: errorMessage,
         stack: getErrorStack(error)
       });
@@ -637,7 +851,9 @@ export class LoanService {
         resourcesWithoutStock: 0,
         totalUnits: 0,
         loanedUnits: 0,
-        availableUnits: 0
+        availableUnits: 0,
+        topLoanedResources: [],
+        lowStockResources: []
       };
     }
   }
@@ -648,36 +864,47 @@ export class LoanService {
   private transformToResponseDto(loan: LoanDocument): LoanResponseDto {
     try {
       const l: any = loan;
+      
+      // ✅ DEBUG: Log para verificar la estructura de datos
+      this.logger.debug(`Transforming loan ${l._id}:`, {
+        hasPerson: !!l.person,
+        hasPersonId: !!l.personId,
+        hasResource: !!l.resource,
+        hasResourceId: !!l.resourceId,
+        personType: typeof l.person,
+        resourceType: typeof l.resource
+      });
+      
       // ✅ CORRECCIÓN: Manejar casos donde los campos poblados podrían ser null
-      const person = l.personId && typeof l.personId === 'object' ? {
-        _id: l.personId._id?.toString() || '',
-        firstName: l.personId.firstName || '',
-        lastName: l.personId.lastName || '',
-        fullName: l.personId.fullName || '',
-        documentNumber: l.personId.documentNumber || undefined,
-        grade: l.personId.grade || undefined,
-        personType: l.personId.personTypeId ? {
-          _id: l.personId.personTypeId._id?.toString() || '',
-          name: l.personId.personTypeId.name || '',
-          description: l.personId.personTypeId.description || ''
+      const person = l.person && typeof l.person === 'object' ? {
+        _id: l.person._id?.toString() || '',
+        firstName: l.person.firstName || '',
+        lastName: l.person.lastName || '',
+        fullName: l.person.fullName || `${l.person.firstName || ''} ${l.person.lastName || ''}`.trim(),
+        documentNumber: l.person.documentNumber || undefined,
+        grade: l.person.grade || undefined,
+        personType: l.person.personTypeId ? {
+          _id: l.person.personTypeId._id?.toString() || '',
+          name: l.person.personTypeId.name || '',
+          description: l.person.personTypeId.description || ''
         } : undefined
       } : undefined;
 
-      const resource = l.resourceId && typeof l.resourceId === 'object' ? {
-        _id: l.resourceId._id?.toString() || '',
-        title: l.resourceId.title || '',
-        isbn: l.resourceId.isbn || undefined,
-        author: l.resourceId.author || undefined,
-        category: l.resourceId.category || undefined,
-        available: l.resourceId.available || false,
-        totalQuantity: l.resourceId.totalQuantity || 0,
-        currentLoansCount: l.resourceId.currentLoansCount || 0,
-        availableQuantity: l.resourceId.availableQuantity || 0,
-        state: l.resourceId.stateId ? {
-          _id: l.resourceId.stateId._id?.toString() || '',
-          name: l.resourceId.stateId.name || '',
-          description: l.resourceId.stateId.description || '',
-          color: l.resourceId.stateId.color || '#000000'
+      const resource = l.resource && typeof l.resource === 'object' ? {
+        _id: l.resource._id?.toString() || '',
+        title: l.resource.title || '',
+        isbn: l.resource.isbn || undefined,
+        author: l.resource.author || undefined,
+        category: l.resource.category || undefined,
+        available: l.resource.available || false,
+        totalQuantity: l.resource.totalQuantity || 0,
+        currentLoansCount: l.resource.currentLoansCount || 0,
+        availableQuantity: l.resource.availableQuantity || 0,
+        state: l.resource.stateId ? {
+          _id: l.resource.stateId._id?.toString() || '',
+          name: l.resource.stateId.name || '',
+          description: l.resource.stateId.description || '',
+          color: l.resource.stateId.color || '#000000'
         } : undefined
       } : undefined;
 

@@ -24,7 +24,7 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
   /**
    * Buscar préstamos con populate completo
    */
-  async findWithCompletePopulate(filter: Record<string, any> = {}): Promise<LoanDocument[]> {
+  async findWithCompletePopulate(filter: Record<string, any> = {}): Promise<any[]> {
     try {
       const loans = await this.loanModel
         .find(filter)
@@ -66,14 +66,34 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         .sort({ loanDate: -1 })
         .exec();
 
-      // ✅ CORRECCIÓN: Agregar fullName calculado para cada préstamo
+      // ✅ CORRECCIÓN: Mapear la estructura para que coincida con el método de búsqueda por texto
       return loans.map(loan => {
         const loanObj = loan.toObject();
+        
+        // Agregar fullName calculado
         if (loanObj.personId && typeof loanObj.personId === 'object') {
           const person = loanObj.personId as any;
           person.fullName = `${person.firstName} ${person.lastName}`;
         }
-        return loanObj;
+        
+        // ✅ CORRECCIÓN: Mapear campos para mantener compatibilidad con el frontend
+        return {
+          ...loanObj,
+          // Mantener los ObjectId originales
+          personId: loanObj.personId,
+          resourceId: loanObj.resourceId,
+          statusId: loanObj.statusId,
+          loanedBy: loanObj.loanedBy,
+          returnedBy: loanObj.returnedBy,
+          renewedBy: loanObj.renewedBy,
+          // Agregar campos poblados con nombres compatibles
+          person: loanObj.personId,
+          resource: loanObj.resourceId,
+          status: loanObj.statusId,
+          loanedByUser: loanObj.loanedBy,
+          returnedByUser: loanObj.returnedBy,
+          renewedByUser: loanObj.renewedBy
+        };
       });
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
@@ -89,7 +109,7 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
   /**
    * Buscar por ID con populate completo
    */
-  async findByIdWithPopulate(id: string): Promise<LoanDocument | null> {
+  async findByIdWithPopulate(id: string): Promise<any | null> {
     try {
       if (!MongoUtils.isValidObjectId(id)) {
         return null;
@@ -138,13 +158,31 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         return null;
       }
 
-      // ✅ CORRECCIÓN: Agregar fullName calculado
+      // ✅ CORRECCIÓN: Agregar fullName calculado y mapear estructura
       const loanObj = loan.toObject();
       if (loanObj.personId && typeof loanObj.personId === 'object') {
         const person = loanObj.personId as any;
         person.fullName = `${person.firstName} ${person.lastName}`;
       }
-      return loanObj;
+      
+      // ✅ CORRECCIÓN: Mapear campos para mantener compatibilidad con el frontend
+      return {
+        ...loanObj,
+        // Mantener los ObjectId originales
+        personId: loanObj.personId,
+        resourceId: loanObj.resourceId,
+        statusId: loanObj.statusId,
+        loanedBy: loanObj.loanedBy,
+        returnedBy: loanObj.returnedBy,
+        renewedBy: loanObj.renewedBy,
+        // Agregar campos poblados con nombres compatibles
+        person: loanObj.personId,
+        resource: loanObj.resourceId,
+        status: loanObj.statusId,
+        loanedByUser: loanObj.loanedBy,
+        returnedByUser: loanObj.returnedBy,
+        renewedByUser: loanObj.renewedBy
+      };
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       this.logger.error(`Error finding loan by ID: ${id}`, {
@@ -158,7 +196,7 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
   /**
    * Actualizar préstamo con populate
    */
-  async update(id: string, updateData: Partial<Loan>): Promise<LoanDocument | null> {
+  async update(id: string, updateData: Partial<Loan>): Promise<any | null> {
     try {
       if (!MongoUtils.isValidObjectId(id)) {
         return null;
@@ -194,13 +232,31 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         return null;
       }
 
-      // ✅ CORRECCIÓN: Agregar fullName calculado
+      // ✅ CORRECCIÓN: Agregar fullName calculado y mapear estructura
       const loanObj = loan.toObject();
       if (loanObj.personId && typeof loanObj.personId === 'object') {
         const person = loanObj.personId as any;
         person.fullName = `${person.firstName} ${person.lastName}`;
       }
-      return loanObj;
+      
+      // ✅ CORRECCIÓN: Mapear campos para mantener compatibilidad con el frontend
+      return {
+        ...loanObj,
+        // Mantener los ObjectId originales
+        personId: loanObj.personId,
+        resourceId: loanObj.resourceId,
+        statusId: loanObj.statusId,
+        loanedBy: loanObj.loanedBy,
+        returnedBy: loanObj.returnedBy,
+        renewedBy: loanObj.renewedBy,
+        // Agregar campos poblados con nombres compatibles
+        person: loanObj.personId,
+        resource: loanObj.resourceId,
+        status: loanObj.statusId,
+        loanedByUser: loanObj.loanedBy,
+        returnedByUser: loanObj.returnedBy,
+        renewedByUser: loanObj.renewedBy
+      };
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       this.logger.error(`Error updating loan: ${id}`, {
@@ -558,6 +614,236 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         updateData
       });
       return 0;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Buscar préstamos con búsqueda por texto
+   */
+  async findWithTextSearch(
+    searchTerm: string, 
+    additionalFilter: Record<string, any> = {}
+  ): Promise<LoanDocument[]> {
+    try {
+      this.logger.debug(`Searching loans with text: ${searchTerm}`);
+
+      // Crear filtro de búsqueda por texto usando agregación
+      const pipeline: any[] = [
+        // Populate de todas las relaciones necesarias
+        {
+          $lookup: {
+            from: 'people',
+            localField: 'personId',
+            foreignField: '_id',
+            as: 'person'
+          }
+        },
+        {
+          $lookup: {
+            from: 'resources',
+            localField: 'resourceId',
+            foreignField: '_id',
+            as: 'resource'
+          }
+        },
+        {
+          $lookup: {
+            from: 'loanstatuses',
+            localField: 'statusId',
+            foreignField: '_id',
+            as: 'status'
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'loanedBy',
+            foreignField: '_id',
+            as: 'loanedByUser'
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'returnedBy',
+            foreignField: '_id',
+            as: 'returnedByUser'
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'renewedBy',
+            foreignField: '_id',
+            as: 'renewedByUser'
+          }
+        },
+        // Descomponer arrays para facilitar la búsqueda
+        {
+          $unwind: {
+            path: '$person',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $unwind: {
+            path: '$resource',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $unwind: {
+            path: '$status',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $unwind: {
+            path: '$loanedByUser',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $unwind: {
+            path: '$returnedByUser',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $unwind: {
+            path: '$renewedByUser',
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        // Agregar fullName calculado
+        {
+          $addFields: {
+            'person.fullName': {
+              $concat: [
+                { $ifNull: ['$person.firstName', ''] },
+                ' ',
+                { $ifNull: ['$person.lastName', ''] }
+              ]
+            }
+          }
+        },
+        // Filtro de búsqueda por texto
+        {
+          $match: {
+            $or: [
+              // Búsqueda por nombre de persona
+              {
+                'person.fullName': {
+                  $regex: searchTerm,
+                  $options: 'i'
+                }
+              },
+              {
+                'person.firstName': {
+                  $regex: searchTerm,
+                  $options: 'i'
+                }
+              },
+              {
+                'person.lastName': {
+                  $regex: searchTerm,
+                  $options: 'i'
+                }
+              },
+              // Búsqueda por número de documento
+              {
+                'person.documentNumber': {
+                  $regex: searchTerm,
+                  $options: 'i'
+                }
+              },
+              // Búsqueda por título de recurso
+              {
+                'resource.title': {
+                  $regex: searchTerm,
+                  $options: 'i'
+                }
+              },
+              // Búsqueda por autor del recurso
+              {
+                'resource.author': {
+                  $regex: searchTerm,
+                  $options: 'i'
+                }
+              },
+              // Búsqueda por ISBN
+              {
+                'resource.isbn': {
+                  $regex: searchTerm,
+                  $options: 'i'
+                }
+              },
+              // Búsqueda por observaciones
+              {
+                observations: {
+                  $regex: searchTerm,
+                  $options: 'i'
+                }
+              }
+            ],
+            ...additionalFilter
+          }
+        },
+        // Ordenar por fecha de préstamo (más recientes primero)
+        {
+          $sort: { loanDate: -1 }
+        },
+        // ✅ CORRECCIÓN: Preservar los ObjectId originales y agregar datos poblados
+        {
+          $addFields: {
+            // Preservar los ObjectId originales
+            originalPersonId: '$personId',
+            originalResourceId: '$resourceId',
+            originalStatusId: '$statusId'
+          }
+        },
+        // ✅ CORRECCIÓN: Proyectar la estructura correcta para el frontend
+        {
+          $project: {
+            _id: 1,
+            personId: '$originalPersonId',
+            resourceId: '$originalResourceId',
+            statusId: '$originalStatusId',
+            quantity: 1,
+            loanDate: 1,
+            dueDate: 1,
+            returnedDate: 1,
+            observations: 1,
+            loanedBy: 1,
+            returnedBy: 1,
+            renewedBy: 1,
+            renewedAt: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            // Mapear los campos poblados a la estructura esperada
+            person: '$person',
+            resource: '$resource',
+            status: '$status',
+            loanedByUser: '$loanedByUser',
+            returnedByUser: '$returnedByUser',
+            renewedByUser: '$renewedByUser'
+          }
+        }
+      ];
+
+      const loans = await this.loanModel.aggregate(pipeline).exec();
+
+      this.logger.debug(`Found ${loans.length} loans matching search term: ${searchTerm}`);
+      return loans;
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error('Error searching loans with text', {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        searchTerm,
+        additionalFilter
+      });
+      return [];
     }
   }
 }

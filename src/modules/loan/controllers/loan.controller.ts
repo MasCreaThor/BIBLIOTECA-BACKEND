@@ -83,6 +83,7 @@ export class LoanController {
     @Query('personId') personId?: string,
     @Query('resourceId') resourceId?: string,
     @Query('statusId') statusId?: string,
+    @Query('status') status?: string,
     @Query('isOverdue') isOverdue?: string,
     @Query('dateFrom') dateFrom?: string,
     @Query('dateTo') dateTo?: string,
@@ -90,7 +91,7 @@ export class LoanController {
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ): Promise<ApiResponseDto<PaginatedResponseDto<LoanResponseDto>>> {
     this.logger.debug(`Finding all loans with filters`, {
-      page, limit, search, personId, resourceId, statusId, isOverdue
+      page, limit, search, personId, resourceId, statusId, status, isOverdue, dateFrom, dateTo
     });
 
     try {
@@ -101,12 +102,15 @@ export class LoanController {
         personId,
         resourceId,
         statusId,
+        status: status as 'active' | 'returned' | 'overdue' | 'lost' | undefined,
         isOverdue: isOverdue === 'true' ? true : isOverdue === 'false' ? false : undefined,
         dateFrom,
         dateTo,
         sortBy,
         sortOrder,
       };
+
+      this.logger.debug(`Search DTO created:`, searchDto);
 
       const result = await this.loanService.findAll(searchDto);
       
@@ -121,7 +125,7 @@ export class LoanController {
       this.logger.error('Error finding loans', {
         error: errorMessage,
         stack: getErrorStack(error),
-        filters: { page, limit, search, personId, resourceId }
+        filters: { page, limit, search, personId, resourceId, statusId, status }
       });
       throw new Error(errorMessage);
     }
