@@ -21,6 +21,7 @@ import { AuthModule } from './modules/auth';
 import { PersonModule } from './modules/person';
 import { ResourceModule } from './modules/resource';
 import { LoanModule } from './modules/loan'; // NUEVO: Módulo de préstamos
+import { ReportsModule } from './modules/reports'; // NUEVO: Módulo de reportes
 import { SeedModule } from './database/seeds/seed.module';
 
 @Module({
@@ -59,6 +60,7 @@ import { SeedModule } from './database/seeds/seed.module';
     PersonModule,
     ResourceModule,
     LoanModule,
+    ReportsModule, // NUEVO: Módulo de reportes
     SeedModule,
   ],
   controllers: [],

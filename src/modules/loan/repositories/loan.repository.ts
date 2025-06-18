@@ -662,7 +662,7 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         },
         {
           $lookup: {
-            from: 'loanstatuses',
+            from: 'loan_statuses',
             localField: 'statusId',
             foreignField: '_id',
             as: 'status'
