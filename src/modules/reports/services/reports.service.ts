@@ -49,18 +49,14 @@ export class ReportsService {
   async getPersonLoans(query: PersonLoansQueryDto): Promise<PersonLoanSummary[]> {
     const { search, status, year = new Date().getFullYear().toString() } = query;
 
-    this.logger.debug(`🔍 Iniciando búsqueda de reportes con filtros:`, { search, status, year });
-
     // Construir filtro de fecha para el año
     const startDate = new Date(`${year}-01-01`);
     const endDate = new Date(`${year}-12-31`);
-    this.logger.debug(`📅 Filtro de fechas: ${startDate.toISOString()} - ${endDate.toISOString()}`);
 
     // 1. Obtener todos los préstamos del año (sin filtrar por estado)
     const loanFilter: any = {
       loanDate: { $gte: startDate, $lte: endDate },
     };
-    this.logger.debug(`🔍 Filtro final de préstamos:`, JSON.stringify(loanFilter, null, 2));
 
     const loans = await this.loanModel
       .find(loanFilter)
@@ -68,8 +64,6 @@ export class ReportsService {
       .populate('resourceId', 'title isbn')
       .populate('statusId', 'name')
       .lean();
-
-    this.logger.debug(`📊 Préstamos encontrados: ${loans.length}`);
 
     // 2. Agrupar préstamos por persona y calcular resumen
     const personLoansMap = new Map<string, any[]>();
@@ -85,7 +79,6 @@ export class ReportsService {
     const personIds = Array.from(personLoansMap.keys());
     let personFilter: any = { _id: { $in: personIds } };
     if (search) {
-      this.logger.debug(`🔍 Aplicando filtro de búsqueda: "${search}"`);
       personFilter = {
         _id: { $in: personIds },
         $or: [
@@ -126,7 +119,6 @@ export class ReportsService {
 
     // 5. Filtrar por estado usando el resumen
     if (status && status.length > 0) {
-      this.logger.debug(`🔍 Filtrando personas por estado en el resumen: ${status.join(', ')}`);
       // Mapear los nombres de filtro a las claves del resumen
       const statusMap = {
         active: 'activeLoans',
@@ -139,9 +131,6 @@ export class ReportsService {
         status.some(s => summary.summary[statusMap[s as SummaryKey] as keyof typeof summary.summary] > 0)
       );
     }
-
-    this.logger.debug(`👤 Personas encontradas después de filtros: ${personSummaries.length}`);
-    this.logger.debug(`✅ Resultado final: ${personSummaries.length} personas con préstamos`);
 
     return personSummaries;
   }
@@ -245,7 +234,6 @@ export class ReportsService {
     
     // Mostrar todos los estados disponibles en la base de datos
     const allStatuses = await this.loanStatusRepository.findAll();
-    this.logger.debug(`🏷️ Estados disponibles en BD:`, allStatuses.map(s => ({ id: s._id, name: s.name })));
     
     // Buscar el estado directamente en el array de estados disponibles
     const statusDoc = allStatuses.find(s => s.name === statusName);
@@ -256,7 +244,6 @@ export class ReportsService {
     
     const statusDocTyped = statusDoc as LoanStatusDocument;
     const statusId = (statusDocTyped._id as Types.ObjectId | string).toString();
-    this.logger.debug(`🏷️ ID correcto para estado '${statusName}': ${statusId}`);
     
     return statusId;
   }
