@@ -95,7 +95,10 @@ export class ReportsService {
         ],
       };
     }
-    const people = await this.personModel.find(personFilter).lean();
+    const people = await this.personModel
+      .find(personFilter)
+      .populate('personTypeId', 'name description')
+      .lean();
 
     // 4. Construir el resumen por persona
     let personSummaries: PersonLoanSummary[] = people.map(person => {
