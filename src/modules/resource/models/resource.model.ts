@@ -183,6 +183,3 @@ ResourceSchema.index({
     notes: 3
   }
 });
-
-// ✅ NUEVO: Índice adicional para búsqueda por autores (a través de populate)
-ResourceSchema.index({ authorIds: 1 });

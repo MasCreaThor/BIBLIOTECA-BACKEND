@@ -22,6 +22,7 @@ import { ApiResponseDto, PaginatedResponseDto } from '@shared/dto/base.dto';
 import { Roles, CurrentUserId } from '@shared/decorators/auth.decorators';
 import { UserRole } from '@shared/guards/roles.guard';
 import { ValidationUtils, MongoUtils, getErrorMessage, getErrorStack } from '@shared/utils';
+import { LoanValidationService } from '@modules/loan/services/loan-validation.service';
 
 /**
  * Controlador para gestión de préstamos
@@ -32,6 +33,7 @@ export class LoanController {
   constructor(
     private readonly loanService: LoanService,
     private readonly logger: LoggerService,
+    private readonly loanValidationService: LoanValidationService,
   ) {
     this.logger.setContext('LoanController');
   }
@@ -233,6 +235,41 @@ export class LoanController {
         error: errorMessage,
         stack: getErrorStack(error),
         filters: { startDate, endDate, page, limit, search, status }
+      });
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Obtener estadísticas de stock
+   * GET /api/loans/stock-stats
+   */
+  @Get('stock-stats')
+  async getStockStatistics(): Promise<ApiResponseDto<{
+    totalResources: number;
+    resourcesWithStock: number;
+    resourcesWithoutStock: number;
+    totalUnits: number;
+    loanedUnits: number;
+    availableUnits: number;
+  }>> {
+    this.logger.debug('Getting stock statistics');
+
+    try {
+      // ✅ CORRECCIÓN: Usar el servicio de recursos para obtener estadísticas de stock
+      const stats = await this.loanService.getStockStatistics();
+      
+      this.logger.debug('Stock statistics:', stats);
+      return ApiResponseDto.success(
+        stats,
+        'Estadísticas de stock obtenidas exitosamente',
+        HttpStatus.OK
+      );
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error('Error getting stock statistics', {
+        error: errorMessage,
+        stack: getErrorStack(error)
       });
       throw new Error(errorMessage);
     }
@@ -449,6 +486,112 @@ export class LoanController {
       this.logger.error(`Error checking if person can borrow: ${personId}`, {
         error: errorMessage,
         stack: getErrorStack(error)
+      });
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Validar datos de préstamo antes de crear
+   * POST /api/loans/validate
+   */
+  @Post('validate')
+  @HttpCode(HttpStatus.OK)
+  async validateLoan(
+    @Body() createLoanDto: CreateLoanDto,
+  ): Promise<ApiResponseDto<{
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+    personInfo?: {
+      canBorrow: boolean;
+      activeLoansCount: number;
+      hasOverdueLoans: boolean;
+      maxLoansAllowed: number;
+    };
+    resourceInfo?: {
+      totalQuantity: number;
+      currentLoans: number;
+      availableQuantity: number;
+      canLoan: boolean;
+    };
+  }>> {
+    this.logger.log(`Validating loan: Person ${createLoanDto.personId}, Resource ${createLoanDto.resourceId}, Quantity ${createLoanDto.quantity || 1}`);
+    
+    try {
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      let personInfo: any = null;
+      let resourceInfo: any = null;
+
+      // Validar persona
+      try {
+        personInfo = await this.loanService.canPersonBorrow(createLoanDto.personId);
+        if (!personInfo.canBorrow) {
+          errors.push(personInfo.reason || 'La persona no puede realizar préstamos');
+        }
+      } catch (error: any) {
+        errors.push(`Error al validar persona: ${error.message}`);
+      }
+
+      // Validar recurso
+      try {
+        resourceInfo = await this.loanValidationService.getResourceAvailabilityInfo(createLoanDto.resourceId);
+        if (!resourceInfo.canLoan) {
+          errors.push('Recurso no disponible: stock insuficiente');
+        }
+      } catch (error: any) {
+        errors.push(`Error al validar recurso: ${error.message}`);
+      }
+
+      // Validar cantidad
+      const quantity = createLoanDto.quantity || 1;
+      if (quantity < 1) {
+        errors.push('La cantidad debe ser al menos 1');
+      } else if (quantity > 5) {
+        errors.push('La cantidad no puede exceder 5 unidades');
+      }
+
+      // Validar disponibilidad de stock si tenemos información del recurso
+      if (resourceInfo && quantity > resourceInfo.availableQuantity) {
+        errors.push(`Cantidad solicitada (${quantity}) excede la disponibilidad (${resourceInfo.availableQuantity})`);
+      }
+
+      // Validar límites de préstamos si tenemos información de la persona
+      if (personInfo && personInfo.activeLoansCount >= personInfo.maxLoansAllowed) {
+        errors.push(`La persona ya tiene ${personInfo.activeLoansCount} préstamos activos (máximo: ${personInfo.maxLoansAllowed})`);
+      }
+
+      // Advertencias
+      if (personInfo && personInfo.hasOverdueLoans) {
+        warnings.push('La persona tiene préstamos vencidos');
+      }
+
+      if (resourceInfo && resourceInfo.availableQuantity <= 2) {
+        warnings.push(`Stock bajo: solo quedan ${resourceInfo.availableQuantity} unidades disponibles`);
+      }
+
+      const isValid = errors.length === 0;
+
+      this.logger.log(`Loan validation completed: ${isValid ? 'VALID' : 'INVALID'} - ${errors.length} errors, ${warnings.length} warnings`);
+      
+      return ApiResponseDto.success(
+        {
+          isValid,
+          errors,
+          warnings,
+          personInfo,
+          resourceInfo,
+        },
+        isValid ? 'Préstamo válido' : 'Préstamo inválido',
+        HttpStatus.OK
+      );
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error validating loan: Person ${createLoanDto.personId}, Resource ${createLoanDto.resourceId}`, {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        createLoanDto
       });
       throw new Error(errorMessage);
     }

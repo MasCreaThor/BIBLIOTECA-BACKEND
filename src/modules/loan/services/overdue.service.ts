@@ -85,6 +85,12 @@ export class OverdueService {
           students: 0,
           teachers: 0
         },
+        byDaysOverdue: {
+          '1-7': 0,
+          '8-14': 0,
+          '15-30': 0,
+          '30+': 0
+        },
         byGrade: [],
         averageDaysOverdue: 0,
         totalOverdueAmount: 0,
@@ -105,12 +111,16 @@ export class OverdueService {
         // Categorizar por severidad
         if (daysOverdue <= 7) {
           stats.bySeverity.low++;
+          stats.byDaysOverdue['1-7']++;
         } else if (daysOverdue <= 15) {
           stats.bySeverity.medium++;
+          stats.byDaysOverdue['8-14']++;
         } else if (daysOverdue <= 30) {
           stats.bySeverity.high++;
+          stats.byDaysOverdue['15-30']++;
         } else {
           stats.bySeverity.critical++;
+          stats.byDaysOverdue['30+']++;
         }
 
         // Procesar información de persona (si está poblada)

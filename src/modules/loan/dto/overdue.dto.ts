@@ -85,6 +85,12 @@ export class OverdueStatsDto {
     high: number;
     critical: number;
   };
+  byDaysOverdue!: {
+    '1-7': number;
+    '8-14': number;
+    '15-30': number;
+    '30+': number;
+  };
   byGrade?: Array<{
     grade: string;
     count: number;

@@ -151,10 +151,15 @@ export class LoanValidationService {
 
     let personType: any = null;
 
-    // Obtener tipo de persona
-    if ((person as any).personType) {
-      personType = (person as any).personType;
-    } else if (person.personTypeId) {
+    // Obtener tipo de persona - manejar tanto populate como ObjectId
+    if (person.personTypeId && typeof person.personTypeId === 'object' && person.personTypeId._id) {
+      // Si está populado, usar el objeto directamente
+      personType = person.personTypeId;
+    } else if (person.personTypeId && typeof person.personTypeId === 'string') {
+      // Si es un string (ObjectId), buscar el tipo
+      personType = await this.personTypeRepository.findById(person.personTypeId);
+    } else if (person.personTypeId && person.personTypeId instanceof Types.ObjectId) {
+      // Si es un ObjectId, buscar el tipo
       personType = await this.personTypeRepository.findById(person.personTypeId.toString());
     }
 
@@ -298,9 +303,14 @@ export class LoanValidationService {
       const availableQuantity = resource.totalQuantity - currentLoans;
 
       let personType: any = null;
-      if ((person as any).personType) {
-        personType = (person as any).personType;
-      } else if (person.personTypeId) {
+      if (person.personTypeId && typeof person.personTypeId === 'object' && person.personTypeId._id) {
+        // Si está populado, usar el objeto directamente
+        personType = person.personTypeId;
+      } else if (person.personTypeId && typeof person.personTypeId === 'string') {
+        // Si es un string (ObjectId), buscar el tipo
+        personType = await this.personTypeRepository.findById(person.personTypeId);
+      } else if (person.personTypeId && person.personTypeId instanceof Types.ObjectId) {
+        // Si es un ObjectId, buscar el tipo
         personType = await this.personTypeRepository.findById(person.personTypeId.toString());
       }
 

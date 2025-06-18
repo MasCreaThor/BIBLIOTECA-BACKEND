@@ -26,12 +26,12 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
    */
   async findWithCompletePopulate(filter: Record<string, any> = {}): Promise<LoanDocument[]> {
     try {
-      return await this.loanModel
+      const loans = await this.loanModel
         .find(filter)
         .populate([
           { 
             path: 'personId', 
-            select: 'firstName lastName fullName documentNumber grade personTypeId',
+            select: 'firstName lastName documentNumber grade personTypeId',
             populate: {
               path: 'personTypeId',
               select: 'name description'
@@ -65,6 +65,16 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         ])
         .sort({ loanDate: -1 })
         .exec();
+
+      // ✅ CORRECCIÓN: Agregar fullName calculado para cada préstamo
+      return loans.map(loan => {
+        const loanObj = loan.toObject();
+        if (loanObj.personId && typeof loanObj.personId === 'object') {
+          const person = loanObj.personId as any;
+          person.fullName = `${person.firstName} ${person.lastName}`;
+        }
+        return loanObj;
+      });
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       this.logger.error('Error finding loans with complete populate', {
@@ -85,12 +95,12 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         return null;
       }
 
-      return await this.loanModel
+      const loan = await this.loanModel
         .findById(id)
         .populate([
           { 
             path: 'personId', 
-            select: 'firstName lastName fullName documentNumber grade personTypeId',
+            select: 'firstName lastName documentNumber grade personTypeId',
             populate: {
               path: 'personTypeId',
               select: 'name description'
@@ -123,6 +133,18 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
           }
         ])
         .exec();
+
+      if (!loan) {
+        return null;
+      }
+
+      // ✅ CORRECCIÓN: Agregar fullName calculado
+      const loanObj = loan.toObject();
+      if (loanObj.personId && typeof loanObj.personId === 'object') {
+        const person = loanObj.personId as any;
+        person.fullName = `${person.firstName} ${person.lastName}`;
+      }
+      return loanObj;
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       this.logger.error(`Error finding loan by ID: ${id}`, {
@@ -142,12 +164,12 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         return null;
       }
 
-      return await this.loanModel
+      const loan = await this.loanModel
         .findByIdAndUpdate(id, updateData, { new: true })
         .populate([
           { 
             path: 'personId', 
-            select: 'firstName lastName fullName documentNumber grade' 
+            select: 'firstName lastName documentNumber grade' 
           },
           { 
             path: 'resourceId', 
@@ -167,6 +189,18 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
           }
         ])
         .exec();
+
+      if (!loan) {
+        return null;
+      }
+
+      // ✅ CORRECCIÓN: Agregar fullName calculado
+      const loanObj = loan.toObject();
+      if (loanObj.personId && typeof loanObj.personId === 'object') {
+        const person = loanObj.personId as any;
+        person.fullName = `${person.firstName} ${person.lastName}`;
+      }
+      return loanObj;
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
       this.logger.error(`Error updating loan: ${id}`, {
