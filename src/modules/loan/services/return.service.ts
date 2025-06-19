@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { LoanRepository, LoanStatusRepository } from '@modules/loan/repositories';
 import { ResourceRepository } from '@modules/resource/repositories';
+import { ResourceStateRepository } from '@modules/resource/repositories';
 import { LoanValidationService } from './loan-validation.service';
 import { LoggerService } from '@shared/services/logger.service';
 import {
@@ -23,6 +24,7 @@ export class ReturnService {
     private readonly loanRepository: LoanRepository,
     private readonly loanStatusRepository: LoanStatusRepository,
     private readonly resourceRepository: ResourceRepository,
+    private readonly resourceStateRepository: ResourceStateRepository,
     private readonly loanValidationService: LoanValidationService,
     private readonly logger: LoggerService,
   ) {
@@ -62,16 +64,26 @@ export class ReturnService {
       const isLate = returnDate > dueDate;
       const daysOverdue = isLate ? Math.ceil((returnDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
-      // Obtener estado de devuelto
-      const returnedStatus = await this.loanStatusRepository.findByName('returned');
-      if (!returnedStatus) {
-        throw new BadRequestException('Estado de devolución no encontrado');
+      // ✅ CORRECCIÓN: Determinar el estado correcto según la condición del recurso
+      let statusToUse;
+      if (returnDto.resourceCondition === 'lost') {
+        // Si el recurso está perdido, usar estado "lost"
+        statusToUse = await this.loanStatusRepository.findByName('lost');
+        if (!statusToUse) {
+          throw new BadRequestException('Estado de préstamo perdido no encontrado');
+        }
+      } else {
+        // Si el recurso no está perdido, usar estado "returned"
+        statusToUse = await this.loanStatusRepository.findByName('returned');
+        if (!statusToUse) {
+          throw new BadRequestException('Estado de devolución no encontrado');
+        }
       }
 
       // Preparar datos de actualización
       const updateData: any = {
         returnedDate: returnDate,
-        statusId: returnedStatus._id,
+        statusId: statusToUse._id,  // ✅ CORRECCIÓN: Usar el estado correcto
         returnedBy: new Types.ObjectId(userId),
       };
 
@@ -465,22 +477,40 @@ export class ReturnService {
   }
 
   /**
-   * Actualizar estado/condición del recurso
+   * ✅ CORREGIDO: Actualizar estado/condición del recurso
    */
   private async updateResourceCondition(
     resourceId: string, 
     condition: 'good' | 'deteriorated' | 'damaged' | 'lost'
   ): Promise<boolean> {
     try {
-      // Este método debería coordinarse con ResourceStateRepository
-      // Por ahora, solo actualizar disponibilidad según la condición
-      if (condition === 'damaged' || condition === 'lost') {
-        await this.resourceRepository.updateAvailability(resourceId, false);
-      } else {
-        await this.resourceRepository.updateAvailability(resourceId, true);
+      // ✅ NUEVO: Obtener el estado del recurso correspondiente
+      const resourceState = await this.resourceStateRepository.findByName(condition);
+      if (!resourceState) {
+        this.logger.error(`Resource state not found for condition: ${condition}`);
+        return false;
       }
 
-      this.logger.debug(`Resource condition updated: ${resourceId} -> ${condition}`);
+      // ✅ NUEVO: Actualizar tanto el estado como la disponibilidad del recurso
+      const updateData: any = {
+        stateId: new Types.ObjectId((resourceState._id as Types.ObjectId).toString())
+      };
+
+      // Actualizar disponibilidad según la condición
+      if (condition === 'damaged' || condition === 'lost') {
+        updateData.available = false;
+      } else {
+        updateData.available = true;
+      }
+
+      // ✅ NUEVO: Actualizar el recurso con el nuevo estado
+      const updatedResource = await this.resourceRepository.update(resourceId, updateData);
+      if (!updatedResource) {
+        this.logger.error(`Failed to update resource state: ${resourceId}`);
+        return false;
+      }
+
+      this.logger.debug(`Resource condition updated: ${resourceId} -> ${condition} (stateId: ${resourceState._id})`);
       return true;
     } catch (error) {
       this.logger.error(`Error updating resource condition: ${resourceId}`, error);

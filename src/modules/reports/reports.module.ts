@@ -6,12 +6,14 @@ import { LoanModule } from '../loan/loan.module';
 import { PersonModule } from '../person/person.module';
 import { Loan, LoanSchema } from '@modules/loan/models';
 import { Person, PersonSchema } from '@modules/person/models';
+import { Resource, ResourceSchema } from '@modules/resource/models';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Loan.name, schema: LoanSchema },
       { name: Person.name, schema: PersonSchema },
+      { name: Resource.name, schema: ResourceSchema },
     ]),
     LoanModule,
     PersonModule,

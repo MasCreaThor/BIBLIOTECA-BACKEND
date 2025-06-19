@@ -36,6 +36,14 @@ export interface PersonLoanSummary {
   personStatus: 'up_to_date' | 'not_up_to_date';
 }
 
+function isPopulated(obj: any): obj is Record<string, any> {
+  return obj && typeof obj === 'object' && !Array.isArray(obj) && !(obj instanceof Types.ObjectId);
+}
+
+function getPopulatedField(obj: any, field: string): any {
+  return isPopulated(obj) && obj[field] ? obj[field] : '';
+}
+
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
@@ -53,6 +61,9 @@ export class ReportsService {
     const startDate = new Date(`${year}-01-01`);
     const endDate = new Date(`${year}-12-31`);
 
+    // ✅ DEBUG: Log para verificar los filtros
+    this.logger.debug('Getting person loans with filters:', { search, status, year, startDate, endDate });
+
     // 1. Obtener todos los préstamos del año (sin filtrar por estado)
     const loanFilter: any = {
       loanDate: { $gte: startDate, $lte: endDate },
@@ -61,9 +72,22 @@ export class ReportsService {
     const loans = await this.loanModel
       .find(loanFilter)
       .populate('personId', 'firstName lastName documentNumber personTypeId')
-      .populate('resourceId', 'title isbn')
+      .populate('resourceId', 'title isbn stateId')
       .populate('statusId', 'name')
       .lean();
+
+    // ✅ DEBUG: Log para verificar los préstamos obtenidos
+    this.logger.debug(`Found ${loans.length} loans for year ${year}`);
+    
+    // ✅ DEBUG: Log para verificar préstamos perdidos
+    const lostLoans = loans.filter(loan => getPopulatedField(loan.statusId, 'name') === 'lost');
+    this.logger.debug(`Found ${lostLoans.length} lost loans:`, lostLoans.map(loan => ({
+      loanId: loan._id,
+      personName: `${getPopulatedField(loan.personId, 'firstName')} ${getPopulatedField(loan.personId, 'lastName')}`.trim(),
+      resourceTitle: getPopulatedField(loan.resourceId, 'title'),
+      resourceState: getPopulatedField(getPopulatedField(loan.resourceId, 'stateId'), 'name'),
+      status: getPopulatedField(loan.statusId, 'name')
+    })));
 
     // 2. Agrupar préstamos por persona y calcular resumen
     const personLoansMap = new Map<string, any[]>();
@@ -100,22 +124,30 @@ export class ReportsService {
       return {
         person: {
           _id: personId,
-          name: `${person.firstName} ${person.lastName}`,
+          name: `${getPopulatedField(person, 'firstName')} ${getPopulatedField(person, 'lastName')}`,
           documentNumber: person.documentNumber || 'Sin documento',
-          personType: (person.personTypeId as any)?.name || 'No especificado',
+          personType: getPopulatedField(person.personTypeId, 'name'),
         },
         loans: personLoans.map(loan => ({
           ...loan,
           resource: loan.resourceId ? {
-            title: loan.resourceId.title,
-            isbn: loan.resourceId.isbn,
+            title: getPopulatedField(loan.resourceId, 'title'),
+            isbn: getPopulatedField(loan.resourceId, 'isbn'),
           } : { title: 'Sin título' },
-          status: loan.statusId?.name || 'Sin estado'
+          status: getPopulatedField(loan.statusId, 'name')
         })),
         summary: this.calculateSummary(personLoans),
         personStatus: this.calculatePersonStatus(personLoans),
       };
     });
+
+    // ✅ DEBUG: Log para verificar el resumen calculado
+    const summariesWithLost = personSummaries.filter(summary => summary.summary.lostLoans > 0);
+    this.logger.debug(`Found ${summariesWithLost.length} people with lost loans:`, summariesWithLost.map(summary => ({
+      personName: summary.person.name,
+      lostLoans: summary.summary.lostLoans,
+      totalLoans: summary.summary.totalLoans
+    })));
 
     // 5. Filtrar por estado usando el resumen
     if (status && status.length > 0) {
@@ -130,6 +162,9 @@ export class ReportsService {
       personSummaries = personSummaries.filter(summary =>
         status.some(s => summary.summary[statusMap[s as SummaryKey] as keyof typeof summary.summary] > 0)
       );
+      
+      // ✅ DEBUG: Log para verificar el filtrado
+      this.logger.debug(`After filtering by status ${status}, found ${personSummaries.length} people`);
     }
 
     return personSummaries;
@@ -188,7 +223,7 @@ export class ReportsService {
     };
 
     loans.forEach(loan => {
-      const statusName = loan.statusId.name.toLowerCase();
+      const statusName = getPopulatedField(loan.statusId, 'name').toLowerCase();
       
       if (statusName === 'active') {
         summary.activeLoans++;
@@ -206,12 +241,12 @@ export class ReportsService {
 
   private calculatePersonStatus(loans: any[]): 'up_to_date' | 'not_up_to_date' {
     const overdueLoans = loans.filter(loan => {
-      const statusName = loan.statusId.name.toLowerCase();
+      const statusName = getPopulatedField(loan.statusId, 'name').toLowerCase();
       return statusName === 'overdue';
     }).length;
     
     const activeLoans = loans.filter(loan => {
-      const statusName = loan.statusId.name.toLowerCase();
+      const statusName = getPopulatedField(loan.statusId, 'name').toLowerCase();
       return statusName === 'active';
     }).length;
 
