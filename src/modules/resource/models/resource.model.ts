@@ -60,6 +60,28 @@ export class Resource extends Document {
   })
   currentLoansCount!: number;
 
+  // ✅ NUEVO: Campos para manejo granular de stock
+  @Prop({
+    type: Number,
+    min: 0,
+    default: 0,
+  })
+  lostQuantity!: number;
+
+  @Prop({
+    type: Number,
+    min: 0,
+    default: 0,
+  })
+  damagedQuantity!: number;
+
+  @Prop({
+    type: Number,
+    min: 0,
+    default: 0,
+  })
+  maintenanceQuantity!: number;
+
   @Prop({
     required: true,
     type: Types.ObjectId,
@@ -137,11 +159,31 @@ export class Resource extends Document {
   updatedAt!: Date;
 
   get availableQuantity(): number {
-    return Math.max(0, this.totalQuantity - this.currentLoansCount);
+    return Math.max(0, this.totalQuantity - this.currentLoansCount - this.lostQuantity - this.damagedQuantity - this.maintenanceQuantity);
   }
 
   get hasStock(): boolean {
     return this.available && this.availableQuantity > 0;
+  }
+
+  // ✅ NUEVO: Getter para cantidad total no disponible
+  get unavailableQuantity(): number {
+    return this.lostQuantity + this.damagedQuantity + this.maintenanceQuantity;
+  }
+
+  // ✅ NUEVO: Getter para verificar si hay unidades perdidas
+  get hasLostUnits(): boolean {
+    return this.lostQuantity > 0;
+  }
+
+  // ✅ NUEVO: Getter para verificar si hay unidades dañadas
+  get hasDamagedUnits(): boolean {
+    return this.damagedQuantity > 0;
+  }
+
+  // ✅ NUEVO: Getter para verificar si hay unidades en mantenimiento
+  get hasMaintenanceUnits(): boolean {
+    return this.maintenanceQuantity > 0;
   }
 }
 
@@ -150,11 +192,28 @@ export const ResourceSchema = SchemaFactory.createForClass(Resource);
 
 // Virtuals
 ResourceSchema.virtual('availableQuantity').get(function(this: ResourceDocument) {
-  return Math.max(0, this.totalQuantity - this.currentLoansCount);
+  return Math.max(0, this.totalQuantity - this.currentLoansCount - this.lostQuantity - this.damagedQuantity - this.maintenanceQuantity);
 });
 
 ResourceSchema.virtual('hasStock').get(function(this: ResourceDocument) {
-  return this.available && (this.totalQuantity - this.currentLoansCount) > 0;
+  return this.available && (this.totalQuantity - this.currentLoansCount - this.lostQuantity - this.damagedQuantity - this.maintenanceQuantity) > 0;
+});
+
+// ✅ NUEVO: Virtuals para el nuevo sistema de stock
+ResourceSchema.virtual('unavailableQuantity').get(function(this: ResourceDocument) {
+  return this.lostQuantity + this.damagedQuantity + this.maintenanceQuantity;
+});
+
+ResourceSchema.virtual('hasLostUnits').get(function(this: ResourceDocument) {
+  return this.lostQuantity > 0;
+});
+
+ResourceSchema.virtual('hasDamagedUnits').get(function(this: ResourceDocument) {
+  return this.damagedQuantity > 0;
+});
+
+ResourceSchema.virtual('hasMaintenanceUnits').get(function(this: ResourceDocument) {
+  return this.maintenanceQuantity > 0;
 });
 
 // Índices para optimización
@@ -183,3 +242,10 @@ ResourceSchema.index({
     notes: 3
   }
 });
+
+// ✅ NUEVO: Índices para los nuevos campos de stock
+ResourceSchema.index({ lostQuantity: 1 });
+ResourceSchema.index({ damagedQuantity: 1 });
+ResourceSchema.index({ maintenanceQuantity: 1 });
+ResourceSchema.index({ available: 1, lostQuantity: 1 });
+ResourceSchema.index({ available: 1, damagedQuantity: 1 });

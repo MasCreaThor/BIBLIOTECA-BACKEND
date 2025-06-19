@@ -82,6 +82,12 @@ export class MarkLostDto {
   observations!: string;
 
   @IsOptional()
+  @IsNumber({}, { message: 'La cantidad perdida debe ser un número' })
+  @Min(1, { message: 'La cantidad perdida debe ser al menos 1' })
+  @Type(() => Number)
+  lostQuantity?: number;
+
+  @IsOptional()
   @IsString({ message: 'La descripción debe ser un string' })
   @MaxLength(200, { message: 'La descripción no debe exceder 200 caracteres' })
   lostDescription?: string;

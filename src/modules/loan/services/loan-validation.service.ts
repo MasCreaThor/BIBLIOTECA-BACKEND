@@ -132,8 +132,8 @@ export class LoanValidationService {
       }
     }
 
-    // ✅ NUEVA VALIDACIÓN: Verificar stock disponible
-    const currentLoans = await this.loanRepository.countActiveByResource(resourceId);
+    // ✅ CORRECCIÓN: Usar getTotalQuantityLoanedByResource para sumar cantidades
+    const currentLoans = await this.loanRepository.getTotalQuantityLoanedByResource(resourceId);
     const availableQuantity = resource.totalQuantity - currentLoans;
 
     if (availableQuantity < requestedQuantity) {
@@ -255,7 +255,8 @@ export class LoanValidationService {
         throw new BadRequestException('Recurso no encontrado');
       }
 
-      const currentLoans = await this.loanRepository.countActiveByResource(resourceId);
+      // ✅ CORRECCIÓN: Usar getTotalQuantityLoanedByResource para sumar cantidades
+      const currentLoans = await this.loanRepository.getTotalQuantityLoanedByResource(resourceId);
       const availableQuantity = resource.totalQuantity - currentLoans;
 
       if (resource) {
@@ -299,7 +300,8 @@ export class LoanValidationService {
         throw new BadRequestException('Recurso no encontrado');
       }
 
-      const currentLoans = await this.loanRepository.countActiveByResource(resourceId);
+      // ✅ CORRECCIÓN: Usar getTotalQuantityLoanedByResource para sumar cantidades
+      const currentLoans = await this.loanRepository.getTotalQuantityLoanedByResource(resourceId);
       const availableQuantity = resource.totalQuantity - currentLoans;
 
       let personType: any = null;

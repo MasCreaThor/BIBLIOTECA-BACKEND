@@ -18,6 +18,7 @@ import {
   ReturnLoanDto,
   ReturnResponseDto,
   LoanResponseDto,
+  MarkLostDto,
 } from '@modules/loan/dto';
 import { ApiResponseDto } from '@shared/dto/base.dto';
 import { Roles, CurrentUserId } from '@shared/decorators/auth.decorators';
@@ -81,10 +82,10 @@ export class ReturnController {
   @HttpCode(HttpStatus.OK)
   async markAsLost(
     @Param('loanId') loanId: string,
-    @Body() body: { observations: string },
+    @Body() body: MarkLostDto,
     @CurrentUserId() userId: string,
   ): Promise<ApiResponseDto<LoanResponseDto>> {
-    this.logger.log(`Marking loan as lost: ${loanId} by user: ${userId}`);
+    this.logger.log(`Marking loan as lost: ${loanId} by user: ${userId}, lostQuantity: ${body.lostQuantity}`);
     
     try {
       if (!MongoUtils.isValidObjectId(loanId)) {
@@ -103,10 +104,11 @@ export class ReturnController {
       const loan = await this.returnService.markAsLost(
         loanId, 
         body.observations.trim(), 
-        userId
+        userId,
+        body.lostQuantity
       );
       
-      this.logger.log(`Loan marked as lost successfully: ${loanId}`);
+      this.logger.log(`Loan marked as lost successfully: ${loanId}, lostQuantity: ${body.lostQuantity}`);
       
       return ApiResponseDto.success(
         loan, 
@@ -118,7 +120,8 @@ export class ReturnController {
         error: getErrorMessage(error),
         stack: getErrorStack(error),
         userId,
-        observations: body.observations
+        observations: body.observations,
+        lostQuantity: body.lostQuantity
       });
       throw error;
     }

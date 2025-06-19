@@ -132,18 +132,41 @@ export class ReturnService {
       // Gestionar estado del recurso si se especifica
       let resourceConditionChanged = false;
       if (returnDto.resourceCondition) {
-        resourceConditionChanged = await this.updateResourceCondition(
-          resourceId,
-          returnDto.resourceCondition
-        );
+        if (returnDto.resourceCondition === 'lost') {
+          // ✅ NUEVO: Usar lógica inteligente para recursos perdidos
+          const resource = await this.resourceRepository.findById(resourceId);
+          if (resource) {
+            resourceConditionChanged = await this.updateResourceConditionIntelligently(
+              resourceId,
+              loanQuantity, // Cantidad prestada que se perdió
+              resource
+            );
+          } else {
+            this.logger.warn(`Resource not found for intelligent update: ${resourceId}`);
+            // Fallback al método original
+            resourceConditionChanged = await this.updateResourceCondition(
+              resourceId,
+              returnDto.resourceCondition
+            );
+          }
+        } else {
+          // Para otros estados, usar el método original
+          resourceConditionChanged = await this.updateResourceCondition(
+            resourceId,
+            returnDto.resourceCondition
+          );
+        }
       }
 
-      // Actualizar disponibilidad del recurso solo si no está perdido o dañado
-      if (returnDto.resourceCondition !== 'lost' && returnDto.resourceCondition !== 'damaged') {
-        await this.resourceRepository.updateAvailability(resourceId, true);
-        this.logger.debug(`Resource ${resourceId} marked as available`);
-      } else {
-        this.logger.debug(`Resource ${resourceId} kept as unavailable due to condition: ${returnDto.resourceCondition}`);
+      // ✅ ACTUALIZADO: No actualizar disponibilidad manualmente si se usó lógica inteligente
+      if (returnDto.resourceCondition && returnDto.resourceCondition !== 'lost') {
+        // Solo actualizar disponibilidad para estados que no sean perdido
+        if (returnDto.resourceCondition !== 'damaged') {
+          await this.resourceRepository.updateAvailability(resourceId, true);
+          this.logger.debug(`Resource ${resourceId} marked as available`);
+        } else {
+          this.logger.debug(`Resource ${resourceId} kept as unavailable due to condition: ${returnDto.resourceCondition}`);
+        }
       }
 
       // Generar mensaje de respuesta
@@ -202,9 +225,10 @@ export class ReturnService {
   async markAsLost(
     loanId: string, 
     observations: string, 
-    userId: string
+    userId: string,
+    lostQuantity?: number
   ): Promise<LoanResponseDto> {
-    this.logger.debug(`Marking loan as lost: ${loanId} by user: ${userId}`);
+    this.logger.debug(`Marking loan as lost: ${loanId} by user: ${userId}, lostQuantity: ${lostQuantity}`);
 
     try {
       if (!MongoUtils.isValidObjectId(loanId)) {
@@ -220,46 +244,70 @@ export class ReturnService {
         throw new BadRequestException('El préstamo ya ha sido devuelto');
       }
 
+      // Validar cantidad perdida
+      const loanQuantity = loan.quantity || 1;
+      const actualLostQuantity = lostQuantity || loanQuantity;
+      
+      if (actualLostQuantity > loanQuantity) {
+        throw new BadRequestException(`No se pueden perder ${actualLostQuantity} copias cuando solo se prestaron ${loanQuantity}`);
+      }
+
+      if (actualLostQuantity < 1) {
+        throw new BadRequestException('La cantidad perdida debe ser al menos 1');
+      }
+
       // Obtener estado perdido
       const lostStatus = await this.loanStatusRepository.findByName('lost');
       if (!lostStatus) {
         throw new BadRequestException('Estado de préstamo perdido no encontrado');
       }
 
+      // Obtener información del recurso
+      const resourceId = this.extractObjectIdString(loan.resourceId);
+      const resource = await this.resourceRepository.findById(resourceId);
+      if (!resource) {
+        throw new NotFoundException('Recurso no encontrado');
+      }
+
+      // ✅ NUEVA LÓGICA: Determinar si se pierden todas las copias o solo algunas
+      const isCompleteLoss = actualLostQuantity === loanQuantity;
+      const remainingQuantity = loanQuantity - actualLostQuantity;
+
       // Actualizar préstamo
-      const updateData = {
-        returnedDate: new Date(),
+      const updateData: any = {
         statusId: new Types.ObjectId((lostStatus._id as Types.ObjectId).toString()),
         returnedBy: new Types.ObjectId(userId),
         observations: observations.trim()
       };
+
+      // Si se pierden todas las copias, marcar como devuelto
+      if (isCompleteLoss) {
+        updateData.returnedDate = new Date();
+      } else {
+        // Si se pierden algunas copias, actualizar la cantidad del préstamo
+        updateData.quantity = remainingQuantity;
+        updateData.observations = `${observations.trim()}\n[PÉRDIDA PARCIAL]: Se perdieron ${actualLostQuantity} de ${loanQuantity} copias. Quedan ${remainingQuantity} copias en préstamo.`;
+      }
 
       const updatedLoan = await this.loanRepository.updateBasic(loanId, updateData);
       if (!updatedLoan) {
         throw new NotFoundException('No se pudo actualizar el préstamo');
       }
 
-      // ✅ ACTUALIZAR STOCK: Decrementar contador pero marcar recurso como no disponible
-      const resourceId = this.extractObjectIdString(loan.resourceId);
-      const loanQuantity = loan.quantity || 1;
-
-      // Decrementar contador de préstamos
+      // ✅ NUEVA LÓGICA: Actualizar stock del recurso
       const stockUpdated = await this.resourceRepository.decrementCurrentLoans(
         resourceId, 
-        loanQuantity
+        actualLostQuantity
       );
 
       if (!stockUpdated) {
         this.logger.warn(`Failed to update stock for lost resource ${resourceId}`);
       }
 
-      // Marcar recurso como no disponible
-      await this.resourceRepository.updateAvailability(resourceId, false);
+      // ✅ NUEVA LÓGICA: Gestionar estado del recurso inteligentemente
+      await this.updateResourceConditionIntelligently(resourceId, actualLostQuantity, resource);
 
-      // Actualizar estado del recurso a perdido si es posible
-      await this.updateResourceCondition(resourceId, 'lost');
-
-      this.logger.log(`Loan marked as lost: ${loanId}`);
+      this.logger.log(`Loan marked as lost: ${loanId}, lostQuantity: ${actualLostQuantity}, isCompleteLoss: ${isCompleteLoss}`);
 
       const populatedLoan = await this.loanRepository.findByIdWithPopulate(loanId);
       if (!populatedLoan) {
@@ -272,7 +320,8 @@ export class ReturnService {
       this.logger.error(`Error marking loan as lost: ${loanId}`, {
         error: errorMessage,
         stack: getErrorStack(error),
-        userId
+        userId,
+        lostQuantity
       });
       throw error;
     }
@@ -514,6 +563,67 @@ export class ReturnService {
       return true;
     } catch (error) {
       this.logger.error(`Error updating resource condition: ${resourceId}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Actualizar estado del recurso de forma inteligente
+   * Solo marca como perdido si no quedan copias disponibles
+   */
+  private async updateResourceConditionIntelligently(
+    resourceId: string, 
+    lostQuantity: number,
+    resource: any
+  ): Promise<boolean> {
+    try {
+      // Calcular stock disponible después de la pérdida
+      const currentAvailableQuantity = resource.availableQuantity || 0;
+      const newAvailableQuantity = Math.max(0, currentAvailableQuantity - lostQuantity);
+      
+      this.logger.debug(`Resource stock analysis: ${resourceId}`, {
+        totalQuantity: resource.totalQuantity,
+        currentLoansCount: resource.currentLoansCount,
+        currentAvailableQuantity,
+        lostQuantity,
+        newAvailableQuantity
+      });
+
+      // Si quedan copias disponibles, mantener estado "good"
+      if (newAvailableQuantity > 0) {
+        const goodState = await this.resourceStateRepository.findByName('good');
+        if (goodState) {
+          const updateData = {
+            stateId: new Types.ObjectId((goodState._id as Types.ObjectId).toString()),
+            available: true
+          };
+          
+          const updatedResource = await this.resourceRepository.update(resourceId, updateData);
+          if (updatedResource) {
+            this.logger.debug(`Resource ${resourceId} kept as available (${newAvailableQuantity} copies remaining)`);
+            return true;
+          }
+        }
+      } else {
+        // Si no quedan copias disponibles, marcar como perdido
+        const lostState = await this.resourceStateRepository.findByName('lost');
+        if (lostState) {
+          const updateData = {
+            stateId: new Types.ObjectId((lostState._id as Types.ObjectId).toString()),
+            available: false
+          };
+          
+          const updatedResource = await this.resourceRepository.update(resourceId, updateData);
+          if (updatedResource) {
+            this.logger.debug(`Resource ${resourceId} marked as lost (no copies remaining)`);
+            return true;
+          }
+        }
+      }
+
+      return false;
+    } catch (error) {
+      this.logger.error(`Error updating resource condition intelligently: ${resourceId}`, error);
       return false;
     }
   }

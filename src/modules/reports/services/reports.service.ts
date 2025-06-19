@@ -250,7 +250,13 @@ export class ReportsService {
       return statusName === 'active';
     }).length;
 
-    if (overdueLoans === 0 && activeLoans === 0) {
+    const lostLoans = loans.filter(loan => {
+      const statusName = getPopulatedField(loan.statusId, 'name').toLowerCase();
+      return statusName === 'lost';
+    }).length;
+
+    // Una persona no está al día si tiene préstamos vencidos, activos o perdidos
+    if (overdueLoans === 0 && activeLoans === 0 && lostLoans === 0) {
       return 'up_to_date';
     }
     return 'not_up_to_date';
