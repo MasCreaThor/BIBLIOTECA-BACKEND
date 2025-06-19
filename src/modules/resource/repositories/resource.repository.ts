@@ -582,4 +582,325 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
   async countByLocation(locationId: string): Promise<number> {
     return this.resourceModel.countDocuments({ locationId }).exec();
   }
+
+  // ✅ NUEVOS MÉTODOS PARA GESTIÓN GRANULAR DE STOCK
+
+  /**
+   * ✅ NUEVO: Marcar unidades como perdidas
+   */
+  async markUnitsAsLost(resourceId: string, quantity: number = 1): Promise<boolean> {
+    try {
+      if (!MongoUtils.isValidObjectId(resourceId)) {
+        return false;
+      }
+
+      // Verificar que hay suficientes unidades disponibles
+      const resource = await this.resourceModel.findById(resourceId);
+      if (!resource) {
+        return false;
+      }
+
+      const availableQuantity = resource.totalQuantity - resource.currentLoansCount - resource.lostQuantity - resource.damagedQuantity - resource.maintenanceQuantity;
+      
+      if (availableQuantity < quantity) {
+        this.logger.warn(`Cannot mark ${quantity} units as lost for resource ${resourceId}. Available: ${availableQuantity}`);
+        return false;
+      }
+
+      const result = await this.resourceModel
+        .findByIdAndUpdate(
+          resourceId,
+          { 
+            $inc: { lostQuantity: quantity }
+          },
+          { new: true }
+        )
+        .exec();
+
+      if (result) {
+        this.logger.debug(`Marked ${quantity} units as lost for resource ${resourceId} (total lost: ${result.lostQuantity})`);
+        return true;
+      }
+
+      return false;
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error marking units as lost for resource: ${resourceId}`, {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        quantity
+      });
+      return false;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Marcar unidades como dañadas
+   */
+  async markUnitsAsDamaged(resourceId: string, quantity: number = 1): Promise<boolean> {
+    try {
+      if (!MongoUtils.isValidObjectId(resourceId)) {
+        return false;
+      }
+
+      // Verificar que hay suficientes unidades disponibles
+      const resource = await this.resourceModel.findById(resourceId);
+      if (!resource) {
+        return false;
+      }
+
+      const availableQuantity = resource.totalQuantity - resource.currentLoansCount - resource.lostQuantity - resource.damagedQuantity - resource.maintenanceQuantity;
+      
+      if (availableQuantity < quantity) {
+        this.logger.warn(`Cannot mark ${quantity} units as damaged for resource ${resourceId}. Available: ${availableQuantity}`);
+        return false;
+      }
+
+      const result = await this.resourceModel
+        .findByIdAndUpdate(
+          resourceId,
+          { 
+            $inc: { damagedQuantity: quantity }
+          },
+          { new: true }
+        )
+        .exec();
+
+      if (result) {
+        this.logger.debug(`Marked ${quantity} units as damaged for resource ${resourceId} (total damaged: ${result.damagedQuantity})`);
+        return true;
+      }
+
+      return false;
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error marking units as damaged for resource: ${resourceId}`, {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        quantity
+      });
+      return false;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Marcar unidades en mantenimiento
+   */
+  async markUnitsInMaintenance(resourceId: string, quantity: number = 1): Promise<boolean> {
+    try {
+      if (!MongoUtils.isValidObjectId(resourceId)) {
+        return false;
+      }
+
+      // Verificar que hay suficientes unidades disponibles
+      const resource = await this.resourceModel.findById(resourceId);
+      if (!resource) {
+        return false;
+      }
+
+      const availableQuantity = resource.totalQuantity - resource.currentLoansCount - resource.lostQuantity - resource.damagedQuantity - resource.maintenanceQuantity;
+      
+      if (availableQuantity < quantity) {
+        this.logger.warn(`Cannot mark ${quantity} units in maintenance for resource ${resourceId}. Available: ${availableQuantity}`);
+        return false;
+      }
+
+      const result = await this.resourceModel
+        .findByIdAndUpdate(
+          resourceId,
+          { 
+            $inc: { maintenanceQuantity: quantity }
+          },
+          { new: true }
+        )
+        .exec();
+
+      if (result) {
+        this.logger.debug(`Marked ${quantity} units in maintenance for resource ${resourceId} (total maintenance: ${result.maintenanceQuantity})`);
+        return true;
+      }
+
+      return false;
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error marking units in maintenance for resource: ${resourceId}`, {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        quantity
+      });
+      return false;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Restaurar unidades perdidas (cuando se encuentran)
+   */
+  async restoreLostUnits(resourceId: string, quantity: number = 1): Promise<boolean> {
+    try {
+      if (!MongoUtils.isValidObjectId(resourceId)) {
+        return false;
+      }
+
+      const resource = await this.resourceModel.findById(resourceId);
+      if (!resource || resource.lostQuantity < quantity) {
+        this.logger.warn(`Cannot restore ${quantity} lost units for resource ${resourceId}. Current lost: ${resource?.lostQuantity || 0}`);
+        return false;
+      }
+
+      const result = await this.resourceModel
+        .findByIdAndUpdate(
+          resourceId,
+          { 
+            $inc: { lostQuantity: -quantity }
+          },
+          { new: true }
+        )
+        .exec();
+
+      if (result) {
+        this.logger.debug(`Restored ${quantity} lost units for resource ${resourceId} (remaining lost: ${result.lostQuantity})`);
+        return true;
+      }
+
+      return false;
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error restoring lost units for resource: ${resourceId}`, {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        quantity
+      });
+      return false;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Restaurar unidades dañadas (cuando se reparan)
+   */
+  async restoreDamagedUnits(resourceId: string, quantity: number = 1): Promise<boolean> {
+    try {
+      if (!MongoUtils.isValidObjectId(resourceId)) {
+        return false;
+      }
+
+      const resource = await this.resourceModel.findById(resourceId);
+      if (!resource || resource.damagedQuantity < quantity) {
+        this.logger.warn(`Cannot restore ${quantity} damaged units for resource ${resourceId}. Current damaged: ${resource?.damagedQuantity || 0}`);
+        return false;
+      }
+
+      const result = await this.resourceModel
+        .findByIdAndUpdate(
+          resourceId,
+          { 
+            $inc: { damagedQuantity: -quantity }
+          },
+          { new: true }
+        )
+        .exec();
+
+      if (result) {
+        this.logger.debug(`Restored ${quantity} damaged units for resource ${resourceId} (remaining damaged: ${result.damagedQuantity})`);
+        return true;
+      }
+
+      return false;
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error restoring damaged units for resource: ${resourceId}`, {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        quantity
+      });
+      return false;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Restaurar unidades en mantenimiento
+   */
+  async restoreMaintenanceUnits(resourceId: string, quantity: number = 1): Promise<boolean> {
+    try {
+      if (!MongoUtils.isValidObjectId(resourceId)) {
+        return false;
+      }
+
+      const resource = await this.resourceModel.findById(resourceId);
+      if (!resource || resource.maintenanceQuantity < quantity) {
+        this.logger.warn(`Cannot restore ${quantity} maintenance units for resource ${resourceId}. Current maintenance: ${resource?.maintenanceQuantity || 0}`);
+        return false;
+      }
+
+      const result = await this.resourceModel
+        .findByIdAndUpdate(
+          resourceId,
+          { 
+            $inc: { maintenanceQuantity: -quantity }
+          },
+          { new: true }
+        )
+        .exec();
+
+      if (result) {
+        this.logger.debug(`Restored ${quantity} maintenance units for resource ${resourceId} (remaining maintenance: ${result.maintenanceQuantity})`);
+        return true;
+      }
+
+      return false;
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error restoring maintenance units for resource: ${resourceId}`, {
+        error: errorMessage,
+        stack: getErrorStack(error),
+        quantity
+      });
+      return false;
+    }
+  }
+
+  /**
+   * ✅ NUEVO: Obtener información completa de stock
+   */
+  async getCompleteStockInfo(resourceId: string): Promise<{
+    totalQuantity: number;
+    currentLoansCount: number;
+    lostQuantity: number;
+    damagedQuantity: number;
+    maintenanceQuantity: number;
+    availableQuantity: number;
+    unavailableQuantity: number;
+    hasStock: boolean;
+  } | null> {
+    try {
+      if (!MongoUtils.isValidObjectId(resourceId)) {
+        return null;
+      }
+
+      const resource = await this.resourceModel.findById(resourceId);
+      if (!resource) {
+        return null;
+      }
+
+      const availableQuantity = Math.max(0, resource.totalQuantity - resource.currentLoansCount - resource.lostQuantity - resource.damagedQuantity - resource.maintenanceQuantity);
+      const unavailableQuantity = resource.lostQuantity + resource.damagedQuantity + resource.maintenanceQuantity;
+
+      return {
+        totalQuantity: resource.totalQuantity,
+        currentLoansCount: resource.currentLoansCount,
+        lostQuantity: resource.lostQuantity,
+        damagedQuantity: resource.damagedQuantity,
+        maintenanceQuantity: resource.maintenanceQuantity,
+        availableQuantity,
+        unavailableQuantity,
+        hasStock: resource.available && availableQuantity > 0
+      };
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error(`Error getting complete stock info for resource: ${resourceId}`, {
+        error: errorMessage,
+        stack: getErrorStack(error)
+      });
+      return null;
+    }
+  }
 }
