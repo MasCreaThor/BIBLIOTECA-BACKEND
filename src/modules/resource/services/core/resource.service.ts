@@ -340,14 +340,14 @@ export class ResourceService {
   private mapToResponseDto(resource: ResourceDocument): ResourceResponseDto {
     return {
       _id: (resource._id as any).toString(),
-      typeId: resource.typeId.toString(),
-      categoryId: resource.categoryId.toString(),
+      typeId: resource.typeId?.toString() || '',
+      categoryId: resource.categoryId?.toString() || '',
       title: resource.title,
-      authorIds: resource.authorIds.map(id => id.toString()),
-      publisherId: resource.publisherId?.toString(),
+      authorIds: resource.authorIds?.map(id => id?.toString()).filter(Boolean) || [],
+      publisherId: resource.publisherId?.toString() || undefined,
       volumes: resource.totalQuantity,
-      stateId: resource.stateId.toString(),
-      locationId: resource.locationId.toString(),
+      stateId: resource.stateId?.toString() || '',
+      locationId: resource.locationId?.toString() || '',
       notes: resource.notes,
       available: resource.available,
       isbn: resource.isbn,
@@ -366,43 +366,43 @@ export class ResourceService {
       
       // ✅ CAMPOS POPULADOS
       type: resource.typeId && typeof resource.typeId === 'object' ? {
-        _id: (resource.typeId as any)._id.toString(),
-        name: (resource.typeId as any).name,
-        description: (resource.typeId as any).description,
+        _id: (resource.typeId as any)._id?.toString() || '',
+        name: (resource.typeId as any).name || '',
+        description: (resource.typeId as any).description || '',
       } : undefined,
       
       category: resource.categoryId && typeof resource.categoryId === 'object' ? {
-        _id: (resource.categoryId as any)._id.toString(),
-        name: (resource.categoryId as any).name,
-        description: (resource.categoryId as any).description,
-        color: (resource.categoryId as any).color,
+        _id: (resource.categoryId as any)._id?.toString() || '',
+        name: (resource.categoryId as any).name || '',
+        description: (resource.categoryId as any).description || '',
+        color: (resource.categoryId as any).color || '',
       } : undefined,
       
       authors: resource.authorIds && Array.isArray(resource.authorIds) && resource.authorIds.length > 0 && typeof resource.authorIds[0] === 'object' ? 
         resource.authorIds.map((author: any) => ({
-          _id: author._id.toString(),
-          name: author.name,
-          biography: author.biography,
+          _id: author._id?.toString() || '',
+          name: author.name || '',
+          biography: author.biography || '',
         })) : undefined,
       
       publisher: resource.publisherId && typeof resource.publisherId === 'object' ? {
-        _id: (resource.publisherId as any)._id.toString(),
-        name: (resource.publisherId as any).name,
-        description: (resource.publisherId as any).description,
+        _id: (resource.publisherId as any)._id?.toString() || '',
+        name: (resource.publisherId as any).name || '',
+        description: (resource.publisherId as any).description || '',
       } : undefined,
       
       location: resource.locationId && typeof resource.locationId === 'object' ? {
-        _id: (resource.locationId as any)._id.toString(),
-        name: (resource.locationId as any).name,
-        description: (resource.locationId as any).description,
-        code: (resource.locationId as any).code,
+        _id: (resource.locationId as any)._id?.toString() || '',
+        name: (resource.locationId as any).name || '',
+        description: (resource.locationId as any).description || '',
+        code: (resource.locationId as any).code || '',
       } : undefined,
       
       state: resource.stateId && typeof resource.stateId === 'object' ? {
-        _id: (resource.stateId as any)._id.toString(),
-        name: (resource.stateId as any).name,
-        description: (resource.stateId as any).description,
-        color: (resource.stateId as any).color,
+        _id: (resource.stateId as any)._id?.toString() || '',
+        name: (resource.stateId as any).name || '',
+        description: (resource.stateId as any).description || '',
+        color: (resource.stateId as any).color || '',
       } : undefined,
       
       createdAt: resource.createdAt,
