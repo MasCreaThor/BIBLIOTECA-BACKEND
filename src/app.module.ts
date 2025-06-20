@@ -20,8 +20,9 @@ import { UserModule } from './modules/user';
 import { AuthModule } from './modules/auth';
 import { PersonModule } from './modules/person';
 import { ResourceModule } from './modules/resource';
-import { LoanModule } from './modules/loan'; // NUEVO: Módulo de préstamos
-import { ReportsModule } from './modules/reports'; // NUEVO: Módulo de reportes
+import { LoanModule } from './modules/loan';
+import { ReportsModule } from './modules/reports';
+import { SystemConfigModule } from './modules/system-config';
 import { SeedModule } from './database/seeds/seed.module';
 
 @Module({
@@ -61,6 +62,7 @@ import { SeedModule } from './database/seeds/seed.module';
     ResourceModule,
     LoanModule,
     ReportsModule, // NUEVO: Módulo de reportes
+    SystemConfigModule, // NUEVO: Módulo de configuración del sistema
     SeedModule,
   ],
   controllers: [],

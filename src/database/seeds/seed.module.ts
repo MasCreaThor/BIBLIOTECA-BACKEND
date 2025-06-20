@@ -22,6 +22,7 @@ import {
   LocationSchema 
 } from '@modules/resource/models';
 import { Loan, LoanSchema, LoanStatus, LoanStatusSchema } from '@modules/loan/models'; // NUEVO
+import { SystemConfig, SystemConfigSchema } from '@modules/system-config/models'; // NUEVO
 
 // Repositorios
 import { UserRepository } from '@modules/user/repositories';
@@ -36,13 +37,18 @@ import {
   ResourceStateRepository 
 } from '@modules/resource/repositories';
 import { LoanRepository, LoanStatusRepository } from '@modules/loan/repositories'; // NUEVO
+import { SystemConfigRepository } from '@modules/system-config/repositories'; // NUEVO
 
 // Servicios
 import { SeedService } from './seed.service';
 import { ResourceSeedService } from '../../modules/resource/seeds/resource-seed.service';
 import { LoanSeedService } from '../../modules/loan/seeds/loan-seed.service'; // NUEVO
+import { SystemConfigService } from '@modules/system-config/services'; // NUEVO
 import { PasswordService } from '@shared/services';
 import { LoggerService } from '@shared/services';
+
+// Comandos
+import { SystemConfigSeedCommand } from './system-config-seed.command'; // NUEVO
 
 @Module({
   imports: [
@@ -59,12 +65,15 @@ import { LoggerService } from '@shared/services';
       { name: Location.name, schema: LocationSchema },
       { name: Loan.name, schema: LoanSchema }, // NUEVO
       { name: LoanStatus.name, schema: LoanStatusSchema }, // NUEVO
+      { name: SystemConfig.name, schema: SystemConfigSchema }, // NUEVO
     ]),
   ],
   providers: [
     SeedService,
     ResourceSeedService,
     LoanSeedService, // NUEVO
+    SystemConfigService, // NUEVO
+    SystemConfigSeedCommand, // NUEVO
     PasswordService,
     LoggerService,
     UserRepository,
@@ -79,7 +88,8 @@ import { LoggerService } from '@shared/services';
     ResourceStateRepository,
     LoanRepository, // NUEVO
     LoanStatusRepository, // NUEVO
+    SystemConfigRepository, // NUEVO
   ],
-  exports: [SeedService, ResourceSeedService, LoanSeedService], // ACTUALIZADO
+  exports: [SeedService, ResourceSeedService, LoanSeedService, SystemConfigService], // ACTUALIZADO
 })
 export class SeedModule {}
