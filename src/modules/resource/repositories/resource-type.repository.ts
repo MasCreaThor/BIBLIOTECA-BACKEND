@@ -18,52 +18,30 @@ export class ResourceTypeRepository extends BaseRepositoryImpl<ResourceTypeDocum
   /**
    * Buscar tipo de recurso por nombre
    */
-  async findByName(name: string): Promise<ResourceTypeDocument | null> {
-    return this.resourceTypeModel.findOne({ name: name.toLowerCase(), active: true }).exec();
+  async findByName(name: 'book' | 'game' | 'map' | 'bible'): Promise<ResourceTypeDocument | null> {
+    return this.resourceTypeModel.findOne({ name, active: true }).exec();
   }
 
   /**
-   * Buscar tipo de recurso por nombre (incluyendo inactivos)
+   * Buscar tipo de recurso por nombre incluyendo inactivos
    */
   async findByNameIncludeInactive(name: string): Promise<ResourceTypeDocument | null> {
     return this.resourceTypeModel.findOne({ name: name.toLowerCase() }).exec();
   }
 
   /**
-   * Obtener todos los tipos de recursos activos
+   * Buscar todos los tipos activos
    */
   async findAllActive(): Promise<ResourceTypeDocument[]> {
-    return this.resourceTypeModel.find({ active: true }).sort({ isSystem: -1, name: 1 }).exec();
-  }
-
-  /**
-   * Obtener tipos del sistema (predefinidos)
-   */
-  async findSystemTypes(): Promise<ResourceTypeDocument[]> {
-    return this.resourceTypeModel.find({ isSystem: true, active: true }).sort({ name: 1 }).exec();
-  }
-
-  /**
-   * Obtener tipos personalizados (no del sistema)
-   */
-  async findCustomTypes(): Promise<ResourceTypeDocument[]> {
-    return this.resourceTypeModel.find({ isSystem: false, active: true }).sort({ name: 1 }).exec();
+    return this.resourceTypeModel.find({ active: true }).sort({ name: 1 }).exec();
   }
 
   /**
    * Verificar si existe un tipo por nombre
    */
-  async existsByName(name: string): Promise<boolean> {
-    const count = await this.resourceTypeModel.countDocuments({ name: name.toLowerCase() }).exec();
+  async existsByName(name: 'book' | 'game' | 'map' | 'bible'): Promise<boolean> {
+    const count = await this.resourceTypeModel.countDocuments({ name }).exec();
     return count > 0;
-  }
-
-  /**
-   * Verificar si un tipo es del sistema
-   */
-  async isSystemType(name: string): Promise<boolean> {
-    const resourceType = await this.resourceTypeModel.findOne({ name: name.toLowerCase() }).exec();
-    return resourceType?.isSystem || false;
   }
 
   /**
