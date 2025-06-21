@@ -157,6 +157,23 @@ export class LoanService {
     try {
       const { page = 1, limit = 20, search, personId, resourceId, statusId, status, isOverdue, dateFrom, dateTo } = searchDto;
 
+      // ✅ NUEVO: Actualizar estados de préstamos vencidos si se está filtrando por vencidos
+      if (isOverdue === true) {
+        try {
+          const overdueService = new (await import('./overdue.service')).OverdueService(
+            this.loanRepository,
+            this.loanStatusRepository,
+            {} as any, // PersonTypeRepository
+            this.logger
+          );
+          await overdueService.updateOverdueStatuses();
+        } catch (error) {
+          this.logger.warn('Could not update overdue statuses automatically', {
+            error: getErrorMessage(error)
+          });
+        }
+      }
+
       // Construir filtros adicionales
       const additionalFilter: any = {};
 

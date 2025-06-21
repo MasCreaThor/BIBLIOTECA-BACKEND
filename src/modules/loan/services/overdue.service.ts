@@ -14,6 +14,36 @@ import { LoanDocument, LoanStatusDocument } from '@modules/loan/models';
 import { DateUtils, getErrorMessage, getErrorStack } from '@shared/utils';
 import { Types, Document } from 'mongoose';
 
+// Type guards para persona y recurso poblados
+function isPopulatedPerson(obj: any): obj is {
+  _id: any;
+  firstName: string;
+  lastName: string;
+  fullName?: string;
+  documentNumber?: string;
+  grade?: string;
+  personTypeId?: any;
+} {
+  return obj && typeof obj === 'object' && typeof obj.firstName === 'string' && typeof obj.lastName === 'string';
+}
+
+function isPopulatedResource(obj: any): obj is {
+  _id: any;
+  title: string;
+  isbn?: string;
+  author?: string;
+  categoryId?: any;
+  category?: string;
+  available?: boolean;
+  totalQuantity?: number;
+  currentLoansCount?: number;
+  availableQuantity?: number;
+  stateId?: any;
+  locationId?: any;
+} {
+  return obj && typeof obj === 'object' && typeof obj.title === 'string';
+}
+
 @Injectable()
 export class OverdueService {
   private overdueStatusId!: Types.ObjectId;
@@ -44,20 +74,35 @@ export class OverdueService {
    */
   async findOverdueLoans(page: number = 1, limit: number = 10): Promise<PaginatedResponseDto<OverdueResponseDto>> {
     try {
+      const today = new Date();
       const loans = await this.loanRepository.findWithCompletePopulate({
-        statusId: this.overdueStatusId,
+        dueDate: { $lt: today },
+        returnedDate: null,
+        statusId: { $ne: this.overdueStatusId }
       });
-      // paginación manual
+
+      await this.updateOverdueStatuses();
+
+      const updatedLoans = await this.loanRepository.findWithCompletePopulate({
+        dueDate: { $lt: today },
+        returnedDate: null
+      });
+
       const startIndex = (page - 1) * limit;
-      const paginated = loans.slice(startIndex, startIndex + limit);
+      const paginated = updatedLoans.slice(startIndex, startIndex + limit);
       const overdueLoans = paginated.map((loan: LoanDocument) => this.mapToOverdueResponseDto(loan));
+      
       return new PaginatedResponseDto(
         overdueLoans,
-        loans.length,
+        updatedLoans.length,
         page,
         limit
       );
     } catch (error) {
+      this.logger.error('Error finding overdue loans', {
+        error: getErrorMessage(error),
+        stack: getErrorStack(error)
+      });
       throw new InternalServerErrorException('Error al buscar préstamos vencidos');
     }
   }
@@ -67,7 +112,13 @@ export class OverdueService {
    */
   async getOverdueStatistics(): Promise<OverdueStatsDto> {
     try {
-      const overdueLoans = await this.loanRepository.findWithCompletePopulate({ statusId: this.overdueStatusId });
+      // ✅ CORRECCIÓN: Buscar préstamos vencidos basándose en la fecha, no solo en el estado
+      const today = new Date();
+      const overdueLoans = await this.loanRepository.findWithCompletePopulate({ 
+        dueDate: { $lt: today }, // Fecha de vencimiento menor que hoy
+        returnedDate: null // No devuelto
+      });
+
       const gradeMap = new Map<string, number>();
       let totalDaysOverdue = 0;
       let maxDaysOverdue = 0;
@@ -124,7 +175,7 @@ export class OverdueService {
         }
 
         // Procesar información de persona (si está poblada)
-        if (loan.populated('personId') && loan.personId) {
+        if (loan.personId && typeof loan.personId === 'object' && loan.personId !== null) {
           const person = loan.personId as any;
           
           // Contar por grado
@@ -190,10 +241,31 @@ export class OverdueService {
       }
 
       const statusId = overdueStatus._id as Types.ObjectId;
-      const updatedCount = await this.loanRepository.updateManyLoans(
-        { statusId: this.overdueStatusId },
-        { statusId: statusId, updatedAt: new Date() }
-      );
+      const today = new Date();
+
+      // ✅ CORRECCIÓN: Buscar préstamos que están vencidos por fecha pero no tienen el estado overdue
+      const overdueLoans = await this.loanRepository.findWithCompletePopulate({
+        dueDate: { $lt: today }, // Fecha de vencimiento menor que hoy
+        returnedDate: null, // No devuelto
+        statusId: { $ne: statusId } // No ya marcado como vencido
+      });
+
+      // ✅ CORRECCIÓN: Actualizar cada préstamo vencido
+      let updatedCount = 0;
+      for (const loan of overdueLoans) {
+        try {
+          await this.loanRepository.updateBasic(loan._id.toString(), {
+            statusId: statusId,
+            updatedAt: new Date()
+          });
+          updatedCount++;
+        } catch (error) {
+          this.logger.error(`Error updating loan ${loan._id} to overdue status`, {
+            error: getErrorMessage(error),
+            stack: getErrorStack(error)
+          });
+        }
+      }
 
       this.logger.log(`Updated ${updatedCount} loans to overdue status`);
 
@@ -241,7 +313,7 @@ export class OverdueService {
   ): LoanDocument[] {
     return loans.filter(loan => {
       // Filtrar por tipo de persona
-      if (filters.personType && loan.populated('personId')) {
+      if (filters.personType && loan.personId && typeof loan.personId === 'object' && loan.personId !== null) {
         const person = loan.personId as any;
         const hasGrade = !!person.grade;
         if (filters.personType === 'student' && !hasGrade) return false;
@@ -255,7 +327,7 @@ export class OverdueService {
       }
 
       // Filtrar por grado
-      if (filters.grade && loan.populated('personId')) {
+      if (filters.grade && loan.personId && typeof loan.personId === 'object' && loan.personId !== null) {
         const person = loan.personId as any;
         if (person.grade !== filters.grade) return false;
       }
@@ -291,6 +363,47 @@ export class OverdueService {
     const dueDate = new Date(loan.dueDate);
     const daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
 
+    const person = isPopulatedPerson(loan.personId)
+      ? {
+          _id: loan.personId._id?.toString() || '',
+          firstName: loan.personId.firstName,
+          lastName: loan.personId.lastName,
+          fullName: loan.personId.fullName || `${loan.personId.firstName} ${loan.personId.lastName}`.trim(),
+          documentNumber: loan.personId.documentNumber || undefined,
+          grade: loan.personId.grade || undefined,
+          personType: loan.personId.personTypeId ? {
+            _id: loan.personId.personTypeId._id?.toString() || '',
+            name: loan.personId.personTypeId.name || '',
+            description: loan.personId.personTypeId.description || ''
+          } : undefined
+        }
+      : undefined;
+
+    const resource = isPopulatedResource(loan.resourceId)
+      ? {
+          _id: loan.resourceId._id?.toString() || '',
+          title: loan.resourceId.title,
+          isbn: loan.resourceId.isbn || undefined,
+          author: loan.resourceId.author || undefined,
+          category: loan.resourceId.categoryId?.name || loan.resourceId.category || undefined,
+          available: !!loan.resourceId.available,
+          totalQuantity: Number(loan.resourceId.totalQuantity) || 0,
+          currentLoansCount: Number(loan.resourceId.currentLoansCount) || 0,
+          availableQuantity: Number(loan.resourceId.availableQuantity) || 0,
+          state: loan.resourceId.stateId ? {
+            _id: loan.resourceId.stateId._id?.toString() || '',
+            name: loan.resourceId.stateId.name || '',
+            description: loan.resourceId.stateId.description || '',
+            color: loan.resourceId.stateId.color || '#000000'
+          } : undefined,
+          location: loan.resourceId.locationId ? {
+            _id: loan.resourceId.locationId._id?.toString() || '',
+            name: loan.resourceId.locationId.name || '',
+            description: loan.resourceId.locationId.description || ''
+          } : undefined
+        }
+      : undefined;
+
     return {
       _id: loan._id?.toString?.() ?? '',
       personId: loan.personId?.toString?.() ?? '',
@@ -300,7 +413,9 @@ export class OverdueService {
       status: loan.statusId?.toString?.() ?? '',
       createdAt: loan.createdAt,
       updatedAt: loan.updatedAt,
-      severity: this.calculateSeverity(daysOverdue)
+      severity: this.calculateSeverity(daysOverdue),
+      person,
+      resource
     };
   }
 

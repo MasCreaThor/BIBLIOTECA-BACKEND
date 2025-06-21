@@ -122,19 +122,19 @@ import {
     }
   
     /**
-     * Actualizar estados de préstamos vencidos
+     * Actualizar estados de préstamos vencidos manualmente
      * POST /api/overdue/update-statuses
      */
     @Post('update-statuses')
     @HttpCode(HttpStatus.OK)
     async updateOverdueStatuses(): Promise<ApiResponseDto<{ updatedCount: number }>> {
       try {
-        this.logger.log('Updating overdue loan statuses');
+        this.logger.debug('Manually updating overdue statuses');
         const result = await this.overdueService.updateOverdueStatuses();
   
         return ApiResponseDto.success(
           result, 
-          `${result.updatedCount} préstamos actualizados a estado vencido`, 
+          `Se actualizaron ${result.updatedCount} préstamos a estado vencido`, 
           HttpStatus.OK
         );
       } catch (error) {

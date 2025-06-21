@@ -68,6 +68,43 @@ export class OverdueResponseDto {
   createdAt!: Date;
   updatedAt!: Date;
   severity?: 'low' | 'medium' | 'high' | 'critical';
+  
+  person?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    documentNumber?: string;
+    grade?: string;
+    personType?: {
+      _id: string;
+      name: string;
+      description: string;
+    };
+  };
+  
+  resource?: {
+    _id: string;
+    title: string;
+    isbn?: string;
+    author?: string;
+    category?: string;
+    available: boolean;
+    totalQuantity: number;
+    currentLoansCount: number;
+    availableQuantity: number;
+    state?: {
+      _id: string;
+      name: string;
+      description: string;
+      color: string;
+    };
+    location?: {
+      _id: string;
+      name: string;
+      description: string;
+    };
+  };
 }
 
 export class OverdueStatsDto {
