@@ -41,7 +41,7 @@ export class GoogleBooksResourceService {
    * Crear recurso desde Google Books
    */
   async createFromGoogleBooks(createDto: ResourceFromGoogleBooksDto): Promise<ResourceResponseDto> {
-    const { googleBooksId, categoryId, locationId, volumes, notes, totalQuantity } = createDto;
+    const { googleBooksId, categoryId, locationId, stateId, volumes, notes, totalQuantity } = createDto;
 
     try {
       // Obtener información del libro desde Google Books
@@ -95,10 +95,22 @@ export class GoogleBooksResourceService {
         throw new BadRequestException('Tipo de recurso "book" no encontrado');
       }
 
-      // Obtener el estado "bueno" por defecto
-      const goodState = await this.resourceStateRepository.findByName('good');
-      if (!goodState) {
-        throw new BadRequestException('Estado de recurso "good" no encontrado');
+      // ✅ NUEVO: Usar el estado proporcionado o el estado "bueno" por defecto
+      let finalStateId: string;
+      if (stateId) {
+        // Verificar que el estado proporcionado existe
+        const providedState = await this.resourceStateRepository.findById(stateId);
+        if (!providedState) {
+          throw new BadRequestException('Estado de recurso proporcionado no encontrado');
+        }
+        finalStateId = stateId;
+      } else {
+        // Usar el estado "bueno" por defecto
+        const goodState = await this.resourceStateRepository.findByName('good');
+        if (!goodState) {
+          throw new BadRequestException('Estado de recurso "good" no encontrado');
+        }
+        finalStateId = (goodState._id as any).toString();
       }
 
       // ✅ CORRECCIÓN: Extraer la mejor URL de imagen disponible
@@ -115,7 +127,7 @@ export class GoogleBooksResourceService {
         authorIds,
         publisherId,
         volumes: volumes || 1,
-        stateId: (goodState._id as any).toString(),
+        stateId: finalStateId,
         locationId,
         totalQuantity: totalQuantity || 1,
         notes,
@@ -130,7 +142,8 @@ export class GoogleBooksResourceService {
         googleBooksId: createResourceDto.googleBooksId,
         coverImageUrl: createResourceDto.coverImageUrl,
         hasCoverImage: !!createResourceDto.coverImageUrl,
-        totalQuantity: createResourceDto.totalQuantity
+        totalQuantity: createResourceDto.totalQuantity,
+        stateId: createResourceDto.stateId
       });
 
       const resource = await this.resourceService.create(createResourceDto);

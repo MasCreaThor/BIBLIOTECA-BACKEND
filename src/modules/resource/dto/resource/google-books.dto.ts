@@ -13,6 +13,10 @@ export class ResourceFromGoogleBooksDto {
   locationId!: string;
 
   @IsOptional()
+  @IsMongoId({ message: 'El estado del recurso debe ser un ID válido' })
+  stateId?: string;
+
+  @IsOptional()
   @IsNumber({}, { message: 'Los volúmenes deben ser un número' })
   @Min(1, { message: 'Debe haber al menos 1 volumen' })
   @Type(() => Number)
