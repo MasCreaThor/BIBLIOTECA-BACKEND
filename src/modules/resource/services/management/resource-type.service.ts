@@ -30,19 +30,20 @@ import {
   
       try {
         // Verificar si ya existe
-        const existingType = await this.resourceTypeRepository.findByName(name);
+        const existingType = await this.resourceTypeRepository.findByNameIncludeInactive(name);
         if (existingType) {
           throw new ConflictException('Ya existe un tipo de recurso con este nombre');
         }
   
         const resourceTypeData = {
-          name,
+          name: name.toLowerCase(),
           description: description.trim(),
           active: true,
+          isSystem: false,
         };
   
         const createdType = await this.resourceTypeRepository.create(resourceTypeData);
-        this.logger.log(`Resource type created successfully: ${name}`);
+        this.logger.log(`Resource type created successfully: ${name} (Custom)`);
   
         return this.mapToResponseDto(createdType);
       } catch (error) {
@@ -68,9 +69,53 @@ import {
       return this.mapToResponseDto(resourceType);
     }
   
-    async findAllActive(): Promise<ResourceTypeResponseDto[]> {
+    async findAllActive(filters?: {
+      search?: string;
+      active?: boolean;
+      isSystem?: boolean;
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    }): Promise<ResourceTypeResponseDto[]> {
       const resourceTypes = await this.resourceTypeRepository.findAllActive();
-      return resourceTypes.map(type => this.mapToResponseDto(type));
+      
+      // ✅ APLICAR FILTROS
+      let filteredTypes = resourceTypes;
+
+      // Filtro de búsqueda por nombre o descripción
+      if (filters?.search) {
+        const searchTerm = filters.search.toLowerCase();
+        filteredTypes = filteredTypes.filter(type => 
+          type.name.toLowerCase().includes(searchTerm) ||
+          type.description.toLowerCase().includes(searchTerm)
+        );
+      }
+
+      // Filtro por estado activo
+      if (filters?.active !== undefined) {
+        filteredTypes = filteredTypes.filter(type => type.active === filters.active);
+      }
+
+      // Filtro por tipo del sistema
+      if (filters?.isSystem !== undefined) {
+        filteredTypes = filteredTypes.filter(type => type.isSystem === filters.isSystem);
+      }
+
+      // Ordenamiento
+      if (filters?.sortBy) {
+        const sortOrder = filters.sortOrder === 'desc' ? -1 : 1;
+        filteredTypes.sort((a, b) => {
+          const aValue = a[filters.sortBy as keyof ResourceTypeDocument];
+          const bValue = b[filters.sortBy as keyof ResourceTypeDocument];
+          
+          if (aValue < bValue) return -1 * sortOrder;
+          if (aValue > bValue) return 1 * sortOrder;
+          return 0;
+        });
+      }
+
+      return filteredTypes.map(type => this.mapToResponseDto(type));
     }
   
     async update(id: string, updateResourceTypeDto: UpdateResourceTypeDto): Promise<ResourceTypeResponseDto> {
@@ -83,8 +128,20 @@ import {
         throw new NotFoundException('Tipo de recurso no encontrado');
       }
   
+      if (existingType.isSystem) {
+        throw new BadRequestException('No se pueden modificar los tipos de recursos del sistema');
+      }
+  
       try {
         const updateData: any = {};
+  
+        if (updateResourceTypeDto.name) {
+          const nameExists = await this.resourceTypeRepository.findByNameIncludeInactive(updateResourceTypeDto.name);
+          if (nameExists && (nameExists._id as any).toString() !== id) {
+            throw new ConflictException('Ya existe un tipo de recurso con este nombre');
+          }
+          updateData.name = updateResourceTypeDto.name.toLowerCase();
+        }
   
         if (updateResourceTypeDto.description) {
           updateData.description = updateResourceTypeDto.description.trim();
@@ -102,7 +159,7 @@ import {
         this.logger.log(`Resource type updated successfully: ${updatedType.name}`);
         return this.mapToResponseDto(updatedType);
       } catch (error) {
-        if (error instanceof NotFoundException) {
+        if (error instanceof NotFoundException || error instanceof ConflictException) {
           throw error;
         }
   
@@ -149,7 +206,10 @@ import {
         throw new NotFoundException('Tipo de recurso no encontrado');
       }
   
-      // Verificar que no tenga recursos asociados
+      if (resourceType.isSystem) {
+        throw new BadRequestException('No se pueden eliminar los tipos de recursos del sistema');
+      }
+  
       const resourceCount = await this.resourceRepository.count({ typeId: id });
       if (resourceCount > 0) {
         throw new BadRequestException(
@@ -167,6 +227,7 @@ import {
         name: resourceType.name,
         description: resourceType.description,
         active: resourceType.active,
+        isSystem: resourceType.isSystem,
         createdAt: resourceType.createdAt,
         updatedAt: resourceType.updatedAt,
       };

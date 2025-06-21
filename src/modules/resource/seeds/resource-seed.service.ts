@@ -54,32 +54,41 @@ export class ResourceSeedService {
         name: 'book' as const,
         description: 'Libros de texto, literatura y referencia',
         active: true,
+        isSystem: true,
       },
       {
         name: 'game' as const,
         description: 'Juegos educativos y didácticos',
         active: true,
+        isSystem: true,
       },
       {
         name: 'map' as const,
         description: 'Mapas geográficos, políticos y temáticos',
         active: true,
+        isSystem: true,
       },
       {
         name: 'bible' as const,
         description: 'Biblias y textos religiosos',
         active: true,
+        isSystem: true,
       },
     ];
 
     for (const resourceTypeData of resourceTypes) {
-      const existing = await this.resourceTypeRepository.findByName(resourceTypeData.name);
+      const existing = await this.resourceTypeRepository.findByNameIncludeInactive(resourceTypeData.name);
 
       if (!existing) {
         await this.resourceTypeRepository.create(resourceTypeData);
-        this.logger.log(`Created resource type: ${resourceTypeData.name}`);
+        this.logger.log(`Created resource type: ${resourceTypeData.name} (System)`);
       } else {
-        this.logger.debug(`Resource type already exists: ${resourceTypeData.name}`);
+        if (!existing.isSystem) {
+          await this.resourceTypeRepository.update((existing._id as any).toString(), { isSystem: true });
+          this.logger.log(`Updated resource type: ${resourceTypeData.name} (marked as System)`);
+        } else {
+          this.logger.debug(`Resource type already exists: ${resourceTypeData.name} (System)`);
+        }
       }
     }
 

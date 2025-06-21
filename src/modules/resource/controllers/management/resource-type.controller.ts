@@ -7,6 +7,7 @@ import {
     Delete,
     Body,
     Param,
+    Query,
     HttpCode,
     HttpStatus,
   } from '@nestjs/common';
@@ -21,6 +22,17 @@ import {
   import { Roles } from '@shared/decorators/auth.decorators';
   import { UserRole } from '@shared/guards/roles.guard';
   import { MongoUtils } from '@shared/utils';
+  
+  // ✅ DTO para filtros de búsqueda
+  interface ResourceTypeFilters {
+    search?: string;
+    active?: boolean;
+    isSystem?: boolean;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }
   
   @Controller('resource-types')
   @Roles(UserRole.ADMIN) // Solo administradores pueden gestionar tipos de recursos
@@ -56,22 +68,34 @@ import {
     }
   
     /**
-     * Obtener todos los tipos de recursos activos
+     * Obtener todos los tipos de recursos con filtros
      * GET /api/resource-types
      */
     @Get()
     @Roles(UserRole.LIBRARIAN, UserRole.ADMIN) // Bibliotecarios también pueden consultar
-    async findAllActive(): Promise<ApiResponseDto<ResourceTypeResponseDto[]>> {
+    async findAllActive(@Query() filters: any): Promise<ApiResponseDto<ResourceTypeResponseDto[]>> {
       try {
-        this.logger.debug('Finding all active resource types');
-        const resourceTypes = await this.resourceTypeService.findAllActive();
+        this.logger.debug('Finding resource types with filters', { filters });
+        
+        // Convertir parámetros de string a tipos apropiados
+        const processedFilters = {
+          search: filters.search,
+          active: filters.active === 'true' ? true : filters.active === 'false' ? false : undefined,
+          isSystem: filters.isSystem === 'true' ? true : filters.isSystem === 'false' ? false : undefined,
+          page: filters.page ? parseInt(filters.page.toString()) : undefined,
+          limit: filters.limit ? parseInt(filters.limit.toString()) : undefined,
+          sortBy: filters.sortBy,
+          sortOrder: filters.sortOrder,
+        };
+
+        const resourceTypes = await this.resourceTypeService.findAllActive(processedFilters);
         return ApiResponseDto.success(
           resourceTypes,
           'Tipos de recursos obtenidos exitosamente',
           HttpStatus.OK,
         );
       } catch (error) {
-        this.logger.error('Error finding active resource types', error);
+        this.logger.error('Error finding resource types with filters', error);
         throw error;
       }
     }

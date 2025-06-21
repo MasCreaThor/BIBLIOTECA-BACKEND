@@ -3,7 +3,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 /**
- * Modelo para tipos de recursos (book, game, map, bible)
+ * Modelo para tipos de recursos (book, game, map, bible + tipos personalizados)
  */
 
 @Schema({
@@ -16,9 +16,8 @@ export class ResourceType extends Document {
     unique: true,
     trim: true,
     lowercase: true,
-    enum: ['book', 'game', 'map', 'bible'],
   })
-  name!: 'book' | 'game' | 'map' | 'bible';
+  name!: string;
 
   @Prop({
     required: true,
@@ -32,6 +31,11 @@ export class ResourceType extends Document {
   })
   active!: boolean;
 
+  @Prop({
+    default: false,
+  })
+  isSystem!: boolean;
+
   @Prop()
   createdAt!: Date;
 
@@ -44,3 +48,5 @@ export const ResourceTypeSchema = SchemaFactory.createForClass(ResourceType);
 
 // Índices para optimización
 ResourceTypeSchema.index({ active: 1 });
+ResourceTypeSchema.index({ isSystem: 1 });
+ResourceTypeSchema.index({ name: 1 });

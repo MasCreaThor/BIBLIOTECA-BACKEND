@@ -56,9 +56,21 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
     try {
       const query: any = {};
 
-      if (filters.search) {
-        // ✅ MEJORADO: Búsqueda por texto en título, ISBN y notas
-        query.$text = { $search: filters.search };
+      // ✅ CORREGIDO: Manejo de búsqueda por texto
+      if (filters.search && filters.search.trim()) {
+        const searchTerm = filters.search.trim();
+        
+        // Usar búsqueda de texto completo si está disponible
+        try {
+          query.$text = { $search: searchTerm };
+        } catch (error) {
+          // Si falla la búsqueda de texto, usar búsqueda por regex
+          query.$or = [
+            { title: { $regex: searchTerm, $options: 'i' } },
+            { isbn: { $regex: searchTerm, $options: 'i' } },
+            { notes: { $regex: searchTerm, $options: 'i' } }
+          ];
+        }
       }
 
       if (filters.typeId) {
@@ -77,39 +89,91 @@ export class ResourceRepository extends BaseRepositoryImpl<ResourceDocument> {
         query.stateId = new Types.ObjectId(filters.stateId);
       }
 
-      // ✅ NUEVO: Filtro por stock disponible
+      if (filters.locationId) {
+        query.locationId = new Types.ObjectId(filters.locationId);
+      }
+
+      if (filters.authorId) {
+        query.authorIds = new Types.ObjectId(filters.authorId);
+      }
+
+      if (filters.publisherId) {
+        query.publisherId = new Types.ObjectId(filters.publisherId);
+      }
+
+      // ✅ CORREGIDO: Filtro por stock disponible (sin usar $expr junto con $text)
       if (filters.hasStock !== undefined) {
         if (filters.hasStock) {
-          query.$expr = {
-            $gt: [
-              { $subtract: ['$totalQuantity', '$currentLoansCount'] },
-              0
-            ]
-          };
+          // Para recursos con stock, usar una consulta separada
+          query.$and = query.$and || [];
+          query.$and.push({
+            $expr: {
+              $gt: [
+                { $subtract: ['$totalQuantity', '$currentLoansCount'] },
+                0
+              ]
+            }
+          });
         } else {
-          query.$expr = {
-            $lte: [
-              { $subtract: ['$totalQuantity', '$currentLoansCount'] },
-              0
-            ]
-          };
+          // Para recursos sin stock
+          query.$and = query.$and || [];
+          query.$and.push({
+            $expr: {
+              $lte: [
+                { $subtract: ['$totalQuantity', '$currentLoansCount'] },
+                0
+              ]
+            }
+          });
         }
       }
 
-      let resources = await this.resourceModel
-        .find(query)
-        .populate([
-          { path: 'typeId', select: 'name description' },
-          { path: 'categoryId', select: 'name description color' },
-          { path: 'authorIds', select: 'name' },
-          { path: 'publisherId', select: 'name' },
-          { path: 'stateId', select: 'name description color' },
-          { path: 'locationId', select: 'name description' }
-        ])
-        .sort({ title: 1 })
-        .exec();
+      // ✅ MEJORADO: Si hay búsqueda de texto y filtros de stock, usar consulta separada
+      let resources: ResourceDocument[];
+      
+      if (filters.search && filters.hasStock !== undefined) {
+        // Consulta separada para evitar conflictos entre $text y $expr
+        const textQuery = { $text: { $search: filters.search.trim() } };
+        const stockQuery = { ...query };
+        delete stockQuery.$text;
+        
+        const textResults = await this.resourceModel.find(textQuery).exec();
+        const stockResults = await this.resourceModel.find(stockQuery).exec();
+        
+        // Combinar resultados
+        const textIds = new Set(textResults.map((r: any) => r._id?.toString()).filter(Boolean));
+        const stockIds = new Set(stockResults.map((r: any) => r._id?.toString()).filter(Boolean));
+        
+        const combinedIds = Array.from(new Set([...textIds, ...stockIds]));
+        resources = await this.resourceModel
+          .find({ _id: { $in: combinedIds } })
+          .populate([
+            { path: 'typeId', select: 'name description' },
+            { path: 'categoryId', select: 'name description color' },
+            { path: 'authorIds', select: 'name' },
+            { path: 'publisherId', select: 'name' },
+            { path: 'stateId', select: 'name description color' },
+            { path: 'locationId', select: 'name description' }
+          ])
+          .sort({ title: 1 })
+          .exec();
+      } else {
+        // Consulta normal
+        resources = await this.resourceModel
+          .find(query)
+          .populate([
+            { path: 'typeId', select: 'name description' },
+            { path: 'categoryId', select: 'name description color' },
+            { path: 'authorIds', select: 'name' },
+            { path: 'publisherId', select: 'name' },
+            { path: 'stateId', select: 'name description color' },
+            { path: 'locationId', select: 'name description' }
+          ])
+          .sort({ title: 1 })
+          .exec();
+      }
 
-      // ✅ NUEVO: Filtro adicional por autores si hay búsqueda
+      // ✅ MEJORADO: Filtro adicional por autores si hay búsqueda
       if (filters.search && resources.length > 0) {
         const searchTerm = filters.search.toLowerCase();
         resources = resources.filter(resource => {
