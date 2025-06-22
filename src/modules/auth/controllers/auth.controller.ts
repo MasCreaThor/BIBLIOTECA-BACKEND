@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, Put, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { AuthService } from '@modules/auth/services';
 import { LoggerService } from '@shared/services/logger.service';
-import { LoginDto, LoginResponseDto, ChangePasswordDto } from '@modules/auth/dto';
+import { LoginDto, LoginResponseDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from '@modules/auth/dto';
 import { ApiResponseDto } from '@shared/dto/base.dto';
 import { Public, CurrentUser, CurrentUserId } from '@shared/decorators/auth.decorators';
 import { JwtUser } from '@shared/decorators/auth.decorators';
@@ -53,6 +53,52 @@ export class AuthController {
       return ApiResponseDto.success(user, 'Usuario obtenido exitosamente', HttpStatus.OK);
     } catch (error) {
       this.logger.error(`Error getting current user: ${userId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Solicitar recuperación de contraseña
+   * POST /api/auth/forgot-password
+   */
+  @Public()
+  @Post('forgot-password')
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<ApiResponseDto<any>> {
+    try {
+      this.logger.debug(`Password reset requested for email: ${forgotPasswordDto.email}`);
+
+      await this.authService.forgotPassword(forgotPasswordDto);
+
+      return ApiResponseDto.success(
+        null, 
+        'Si el email existe en nuestro sistema, recibirás un enlace de recuperación', 
+        HttpStatus.OK
+      );
+    } catch (error) {
+      this.logger.error(`Error in forgot password for email: ${forgotPasswordDto.email}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restablecer contraseña con token
+   * POST /api/auth/reset-password
+   */
+  @Public()
+  @Post('reset-password')
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto): Promise<ApiResponseDto<any>> {
+    try {
+      this.logger.debug(`Password reset attempt with token: ${resetPasswordDto.token}`);
+
+      await this.authService.resetPassword(resetPasswordDto);
+
+      return ApiResponseDto.success(
+        null, 
+        'Contraseña restablecida exitosamente', 
+        HttpStatus.OK
+      );
+    } catch (error) {
+      this.logger.error(`Error in reset password with token: ${resetPasswordDto.token}`, error);
       throw error;
     }
   }

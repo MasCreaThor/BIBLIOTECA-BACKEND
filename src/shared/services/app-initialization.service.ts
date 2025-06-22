@@ -75,8 +75,26 @@ export class AppInitializationService implements OnModuleInit {
       this.logger.log(`   - Locations: ${newIntegrity.locationsCount}`);
 
     } catch (error) {
+      // Manejar específicamente errores de duplicados
+      if ((error as any).code === 11000) {
+        this.logger.warn('⚠️ Duplicate key error during resource initialization. This is usually harmless if data already exists.');
+        this.logger.debug('Duplicate key error details:', error);
+        
+        // Verificar si los datos están realmente disponibles a pesar del error
+        try {
+          const integrity = await this.resourceSeedService.verifyResourceDataIntegrity();
+          if (integrity.hasResourceStates && integrity.hasResourceTypes && integrity.hasBasicCategories && integrity.hasBasicLocations) {
+            this.logger.log('✅ Resource system is actually properly initialized despite duplicate key error');
+            return;
+          }
+        } catch (verifyError) {
+          this.logger.error('❌ Error verifying resource data integrity after duplicate key error:', verifyError);
+        }
+      }
+      
       this.logger.error('❌ Error initializing resource system:', error);
-      throw error;
+      // No lanzar el error para evitar que falle el arranque del servidor
+      // Solo logear el error
     }
   }
 

@@ -15,9 +15,16 @@ import { LoggerService } from '@shared/services';
 import { User, UserSchema } from '@modules/user/models';
 import { UserRepository } from '@modules/user/repositories';
 
+// Modelos y repositorios de auth
+import { PasswordResetToken, PasswordResetTokenSchema } from './models/password-reset-token.model';
+import { PasswordResetTokenRepository } from './repositories/password-reset-token.repository';
+
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }])
+    MongooseModule.forFeature([
+      { name: User.name, schema: UserSchema },
+      { name: PasswordResetToken.name, schema: PasswordResetTokenSchema }
+    ])
   ],
   controllers: [AuthController],
   providers: [
@@ -26,6 +33,7 @@ import { UserRepository } from '@modules/user/repositories';
     BootstrapService,
     LoggerService,
     UserRepository,
+    PasswordResetTokenRepository,
   ],
   exports: [
     AuthService,

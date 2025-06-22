@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 // Servicios compartidos
 import { LoggerService } from './services/logger.service';
 import { PasswordService } from './services/password.service';
+import { EmailService } from './services/email.service';
 import { AppInitializationService } from './services/app-initialization.service';
 
 // Importar modelos necesarios para inicialización
@@ -52,6 +53,7 @@ import { ResourceSeedService } from '@modules/resource/seeds/resource-seed.servi
     // Servicios básicos
     LoggerService,
     PasswordService,
+    EmailService,
     
     // Servicios de inicialización
     AppInitializationService,
@@ -67,6 +69,7 @@ import { ResourceSeedService } from '@modules/resource/seeds/resource-seed.servi
     // Exportar servicios básicos para uso global
     LoggerService,
     PasswordService,
+    EmailService,
     
     // Exportar servicio de inicialización
     AppInitializationService,

@@ -96,4 +96,20 @@ export class ResourceTypeRepository extends BaseRepositoryImpl<ResourceTypeDocum
   async getBibleType(): Promise<ResourceTypeDocument | null> {
     return this.findByName('bible');
   }
+
+  /**
+   * Buscar y actualizar o crear (upsert)
+   */
+  async findOneAndUpdate(
+    filter: any,
+    update: any,
+    options: any = {}
+  ): Promise<ResourceTypeDocument | null> {
+    const result = await this.resourceTypeModel.findOneAndUpdate(filter, update, options).exec();
+    // Mongoose 6+ puede devolver ModifyResult, que tiene .value
+    if (result && typeof result === 'object' && 'value' in result) {
+      return (result as any).value as ResourceTypeDocument | null;
+    }
+    return result as ResourceTypeDocument | null;
+  }
 }
