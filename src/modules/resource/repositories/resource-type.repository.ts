@@ -37,6 +37,13 @@ export class ResourceTypeRepository extends BaseRepositoryImpl<ResourceTypeDocum
   }
 
   /**
+   * Buscar todos los tipos de recursos (activos e inactivos)
+   */
+  async findAll(): Promise<ResourceTypeDocument[]> {
+    return this.resourceTypeModel.find().sort({ name: 1 }).exec();
+  }
+
+  /**
    * Verificar si existe un tipo por nombre
    */
   async existsByName(name: 'book' | 'game' | 'map' | 'bible'): Promise<boolean> {

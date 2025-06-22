@@ -78,7 +78,7 @@ import {
       sortBy?: string;
       sortOrder?: 'asc' | 'desc';
     }): Promise<ResourceTypeResponseDto[]> {
-      const resourceTypes = await this.resourceTypeRepository.findAllActive();
+      const resourceTypes = await this.resourceTypeRepository.findAll();
       
       // ✅ APLICAR FILTROS
       let filteredTypes = resourceTypes;

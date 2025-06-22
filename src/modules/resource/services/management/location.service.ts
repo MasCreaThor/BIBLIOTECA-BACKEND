@@ -15,6 +15,27 @@ import {
 import { LocationDocument } from '@modules/resource/models';
 import { MongoUtils } from '@shared/utils';
 
+// ✅ INTERFACE PARA FILTROS DE BÚSQUEDA
+interface LocationFilters {
+  search?: string;
+  active?: boolean;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+// ✅ INTERFACE PARA RESPUESTA PAGINADA
+interface PaginatedLocationResult {
+  data: LocationResponseDto[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 @Injectable()
 export class LocationService {
   constructor(
@@ -69,6 +90,23 @@ export class LocationService {
   async findAllActive(): Promise<LocationResponseDto[]> {
     const locations = await this.locationRepository.findAllActive();
     return locations.map(location => this.mapToResponseDto(location));
+  }
+
+  // ✅ NUEVO MÉTODO: Buscar ubicaciones con filtros y paginación
+  async findWithFilters(filters: LocationFilters = {}): Promise<PaginatedLocationResult> {
+    try {
+      this.logger.debug('Finding locations with filters:', filters);
+      
+      const result = await this.locationRepository.findWithFilters(filters);
+      
+      return {
+        data: result.data.map(location => this.mapToResponseDto(location)),
+        pagination: result.pagination
+      };
+    } catch (error) {
+      this.logger.error('Error finding locations with filters:', error);
+      throw error;
+    }
   }
 
   async update(id: string, updateLocationDto: UpdateLocationDto): Promise<LocationResponseDto> {

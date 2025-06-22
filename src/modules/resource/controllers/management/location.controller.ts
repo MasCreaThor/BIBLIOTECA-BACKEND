@@ -7,6 +7,7 @@ import {
     Delete,
     Body,
     Param,
+    Query,
     HttpCode,
     HttpStatus,
   } from '@nestjs/common';
@@ -20,7 +21,7 @@ import {
   import { ApiResponseDto } from '@shared/dto/base.dto';
   import { Roles } from '@shared/decorators/auth.decorators';
   import { UserRole } from '@shared/guards/roles.guard';
-  import { MongoUtils } from '@shared/utils';
+  import { MongoUtils, ValidationUtils } from '@shared/utils';
   
   @Controller('locations')
   @Roles(UserRole.LIBRARIAN, UserRole.ADMIN)
@@ -48,6 +49,51 @@ import {
     }
   
     @Get()
+    async findAll(
+      @Query('search') search?: string,
+      @Query('active') active?: string,
+      @Query('page') page: string = '1',
+      @Query('limit') limit: string = '20',
+      @Query('sortBy') sortBy: string = 'name',
+      @Query('sortOrder') sortOrder: 'asc' | 'desc' = 'asc',
+    ): Promise<ApiResponseDto<any>> {
+      try {
+        // Validar y parsear parámetros
+        const pageNum = parseInt(page, 10) || 1;
+        const limitNum = Math.min(parseInt(limit, 10) || 20, 100);
+        
+        // Construir filtros
+        const filters: any = {};
+        
+        if (search && ValidationUtils.isNotEmpty(search)) {
+          filters.search = search.trim();
+        }
+        
+        if (active !== undefined) {
+          filters.active = active === 'true';
+        }
+        
+        filters.page = pageNum;
+        filters.limit = limitNum;
+        filters.sortBy = sortBy;
+        filters.sortOrder = sortOrder;
+
+        this.logger.debug('Finding locations with filters:', filters);
+        
+        const result = await this.locationService.findWithFilters(filters);
+        
+        return ApiResponseDto.success(
+          result,
+          'Ubicaciones obtenidas exitosamente',
+          HttpStatus.OK,
+        );
+      } catch (error) {
+        this.logger.error('Error finding locations', error);
+        throw error;
+      }
+    }
+
+    @Get('active')
     async findAllActive(): Promise<ApiResponseDto<LocationResponseDto[]>> {
       try {
         this.logger.debug('Finding all active locations');
