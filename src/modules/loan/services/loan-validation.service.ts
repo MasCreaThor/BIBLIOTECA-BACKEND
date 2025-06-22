@@ -13,7 +13,7 @@ export class LoanValidationService {
   private readonly MAX_LOANS_PER_PERSON = 3;
   private readonly MAX_LOAN_DAYS = 15;
   private readonly MIN_QUANTITY = 1;
-  private readonly MAX_QUANTITY = 5;
+  private readonly MAX_QUANTITY_GENERAL = 1000; // Aumentado para mayor flexibilidad
 
   constructor(
     private readonly loanRepository: LoanRepository,
@@ -75,8 +75,8 @@ export class LoanValidationService {
       throw new BadRequestException(`La cantidad debe ser un número entero mayor a ${this.MIN_QUANTITY - 1}`);
     }
 
-    if (quantity > this.MAX_QUANTITY) {
-      throw new BadRequestException(`La cantidad no puede exceder ${this.MAX_QUANTITY} unidades`);
+    if (quantity > this.MAX_QUANTITY_GENERAL) {
+      throw new BadRequestException(`La cantidad no puede exceder ${this.MAX_QUANTITY_GENERAL} unidades`);
     }
   }
 
@@ -191,9 +191,9 @@ export class LoanValidationService {
       }
     } else {
       // OTROS TIPOS: usar límite general
-      if (requestedQuantity > this.MAX_QUANTITY) {
+      if (requestedQuantity > this.MAX_QUANTITY_GENERAL) {
         throw new BadRequestException(
-          `Cantidad máxima permitida: ${this.MAX_QUANTITY}. Solicitado: ${requestedQuantity}`
+          `Cantidad máxima permitida: ${this.MAX_QUANTITY_GENERAL}. Solicitado: ${requestedQuantity}`
         );
       }
     }
@@ -334,8 +334,8 @@ export class LoanValidationService {
         maxQuantity = availableQuantity;
         reason = 'Los profesores pueden prestar toda la cantidad disponible';
       } else {
-        maxQuantity = Math.min(this.MAX_QUANTITY, availableQuantity);
-        reason = `Máximo general: ${this.MAX_QUANTITY} unidades`;
+        maxQuantity = Math.min(this.MAX_QUANTITY_GENERAL, availableQuantity);
+        reason = `Máximo general: ${this.MAX_QUANTITY_GENERAL} unidades`;
       }
 
       return {
@@ -440,7 +440,7 @@ export class LoanValidationService {
       maxLoansPerPerson: this.MAX_LOANS_PER_PERSON,
       maxLoanDays: this.MAX_LOAN_DAYS,
       minQuantity: this.MIN_QUANTITY,
-      maxQuantity: this.MAX_QUANTITY
+      maxQuantity: this.MAX_QUANTITY_GENERAL
     };
   }
 

@@ -29,9 +29,9 @@ export class CreateLoanDto {
   @IsOptional()
   @IsNumber({}, { message: 'La cantidad debe ser un número' })
   @Min(1, { message: 'La cantidad debe ser al menos 1' })
-  @Max(50, { message: 'No se pueden prestar más de 50 unidades' }) // Aumentado para profesores
+  @Max(1000, { message: 'No se pueden prestar más de 1000 unidades' })
   @Type(() => Number)
-  quantity?: number;
+  quantity!: number;
 
   @IsOptional()
   @IsString({ message: 'Las observaciones deben ser un string' })
@@ -258,7 +258,7 @@ export class ValidateLoanDto {
 
   @IsNumber({}, { message: 'La cantidad debe ser un número' })
   @Min(1, { message: 'La cantidad debe ser al menos 1' })
-  @Max(50, { message: 'No se pueden prestar más de 50 unidades' })
+  @Max(1000, { message: 'No se pueden prestar más de 1000 unidades' })
   @Type(() => Number)
   quantity!: number;
 }

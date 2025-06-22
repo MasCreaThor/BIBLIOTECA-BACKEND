@@ -548,12 +548,18 @@ export class LoanController {
         errors.push(`Error al validar recurso: ${error.message}`);
       }
 
-      // Validar cantidad
+      // Validar cantidad según tipo de persona
       const quantity = createLoanDto.quantity || 1;
       if (quantity < 1) {
         errors.push('La cantidad debe ser al menos 1');
-      } else if (quantity > 5) {
-        errors.push('La cantidad no puede exceder 5 unidades');
+      } else {
+        // Validación básica de cantidad máxima
+        if (quantity > 1000) {
+          errors.push('La cantidad no puede exceder 1000 unidades');
+        }
+        
+        // Validación específica por tipo de persona se hace en el servicio principal
+        // Aquí solo validamos límites generales
       }
 
       // Validar disponibilidad de stock si tenemos información del recurso
