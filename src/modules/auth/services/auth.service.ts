@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserRepository } from "@modules/user/repositories";
@@ -73,6 +73,8 @@ export class AuthService {
         access_token: accessToken,
         user: {
           id: userId,
+          firstName: user.firstName,
+          lastName: user.lastName,
           email: user.email,
           role: user.role,
           lastLogin: new Date(),
@@ -122,7 +124,67 @@ export class AuthService {
 
     // Excluir password de la respuesta
     const { password, ...userWithoutPassword } = user.toObject();
+    
+    // Log simple para debug
+    this.logger.debug(`User data for ID ${userId}: firstName=${userWithoutPassword.firstName}, lastName=${userWithoutPassword.lastName}`);
+    
     return userWithoutPassword;
+  }
+
+  /**
+   * Actualizar perfil del usuario actual
+   */
+  async updateProfile(userId: string, updateData: { firstName?: string; lastName?: string; email?: string }): Promise<Partial<UserDocument>> {
+    const user = await this.userRepository.findById(userId);
+
+    if (!user || !user.active) {
+      throw new UnauthorizedException('Usuario no encontrado o inactivo');
+    }
+
+    try {
+      const updateFields: any = {};
+
+      // Actualizar firstName si se proporciona
+      if (updateData.firstName) {
+        updateFields.firstName = updateData.firstName.trim();
+      }
+
+      // Actualizar lastName si se proporciona
+      if (updateData.lastName) {
+        updateFields.lastName = updateData.lastName.trim();
+      }
+
+      // Actualizar email si se proporciona
+      if (updateData.email && updateData.email !== user.email) {
+        const emailExists = await this.userRepository.findByEmail(updateData.email);
+        if (emailExists) {
+          throw new ConflictException('El email ya está registrado');
+        }
+        updateFields.email = updateData.email.toLowerCase().trim();
+      }
+
+      // Solo actualizar si hay campos para actualizar
+      if (Object.keys(updateFields).length > 0) {
+        const updatedUser = await this.userRepository.update(userId, updateFields);
+        if (!updatedUser) {
+          throw new UnauthorizedException('Error al actualizar el perfil');
+        }
+
+        // Excluir password de la respuesta
+        const { password, ...userWithoutPassword } = updatedUser.toObject();
+        return userWithoutPassword;
+      }
+
+      // Si no hay campos para actualizar, retornar usuario actual
+      const { password, ...userWithoutPassword } = user.toObject();
+      return userWithoutPassword;
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      this.logger.error(`Error updating profile for user: ${userId}`, error);
+      throw new BadRequestException('Error al actualizar el perfil');
+    }
   }
 
   /**

@@ -30,6 +30,8 @@
     "fix:imports": "npm run build || echo 'Errores de compilación encontrados'",
     "admin:init": "ts-node -r tsconfig-paths/register src/database/seeds/admin-bootstrap.command.ts",
     "admin:status": "ts-node -r tsconfig-paths/register src/database/seeds/admin-status.command.ts",
+    "admin:update-names": "ts-node -r tsconfig-paths/register src/database/seeds/admin-update-names.command.ts",
+    "admin:check-user": "ts-node -r tsconfig-paths/register src/database/seeds/check-user.command.ts",
     "loans:fix": "ts-node -r tsconfig-paths/register src/scripts/fix-loan-system.ts fix",
     "loans:verify": "ts-node -r tsconfig-paths/register src/scripts/fix-loan-system.ts verify",
     "loans:seed-statuses": "ts-node -r tsconfig-paths/register src/scripts/fix-loan-system.ts seed-statuses",

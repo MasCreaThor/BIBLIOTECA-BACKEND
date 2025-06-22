@@ -16,6 +16,12 @@ export class LoginDto {
 }
 
 export class CreateUserDto {
+  @IsString({ message: 'El nombre es requerido' })
+  firstName!: string;
+
+  @IsString({ message: 'El apellido es requerido' })
+  lastName!: string;
+
   @IsEmail({}, { message: 'Debe proporcionar un email válido' })
   @Transform(({ value }: { value: string }) => value?.toLowerCase().trim())
   email!: string;
@@ -29,6 +35,14 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto {
+  @IsOptional()
+  @IsString({ message: 'El nombre debe ser un string' })
+  firstName?: string;
+
+  @IsOptional()
+  @IsString({ message: 'El apellido debe ser un string' })
+  lastName?: string;
+
   @IsOptional()
   @IsEmail({}, { message: 'Debe proporcionar un email válido' })
   @Transform(({ value }: { value: string }) => value?.toLowerCase().trim())
@@ -57,6 +71,8 @@ export class LoginResponseDto {
   access_token!: string;
   user!: {
     id: string;
+    firstName: string;
+    lastName: string;
     email: string;
     role: string;
     lastLogin: Date;
@@ -65,6 +81,8 @@ export class LoginResponseDto {
 
 export class UserResponseDto {
   _id!: string;
+  firstName!: string;
+  lastName!: string;
   email!: string;
   role!: string;
   active!: boolean;

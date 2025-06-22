@@ -36,6 +36,13 @@ export class UserRepository extends BaseRepositoryImpl<UserDocument> {
   }
 
   /**
+   * Buscar todos los usuarios
+   */
+  async findAll(): Promise<UserDocument[]> {
+    return this.userModel.find().exec();
+  }
+
+  /**
    * Buscar usuarios por rol
    */
   async findByRole(role: 'admin' | 'librarian'): Promise<UserDocument[]> {

@@ -6,6 +6,7 @@ import { AuthController } from './controllers/auth.controller';
 
 // Servicios internos
 import { AuthService } from './services/auth.service';
+import { BootstrapService } from './services/bootstrap.service';
 
 // Servicios compartidos (PasswordService ahora está en shared)
 import { LoggerService } from '@shared/services';
@@ -22,11 +23,13 @@ import { UserRepository } from '@modules/user/repositories';
   providers: [
     // PasswordService ya no se declara aquí, viene de SharedModule global
     AuthService,
+    BootstrapService,
     LoggerService,
     UserRepository,
   ],
   exports: [
     AuthService,
+    BootstrapService,
     // PasswordService se exporta desde SharedModule
   ],
 })

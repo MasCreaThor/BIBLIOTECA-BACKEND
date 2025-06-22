@@ -80,6 +80,28 @@ export class AuthController {
   }
 
   /**
+   * Actualizar perfil del usuario actual
+   * PUT /api/auth/profile
+   */
+  @Put('profile')
+  @HttpCode(HttpStatus.OK)
+  async updateProfile(
+    @CurrentUserId() userId: string,
+    @Body() updateProfileDto: { firstName?: string; lastName?: string; email?: string },
+  ): Promise<ApiResponseDto<any>> {
+    try {
+      this.logger.log(`Profile update request for user: ${userId}`);
+
+      const updatedUser = await this.authService.updateProfile(userId, updateProfileDto);
+
+      return ApiResponseDto.success(updatedUser, 'Perfil actualizado exitosamente', HttpStatus.OK);
+    } catch (error) {
+      this.logger.error(`Error updating profile for user: ${userId}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Cerrar sesión
    * POST /api/auth/logout
    */
