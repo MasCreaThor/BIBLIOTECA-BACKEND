@@ -14,6 +14,27 @@ import {
   } from '@modules/resource/dto';
   import { CategoryDocument } from '@modules/resource/models';
   import { MongoUtils } from '@shared/utils';
+
+  // ✅ INTERFACE PARA FILTROS DE BÚSQUEDA
+  interface CategoryFilters {
+    search?: string;
+    active?: boolean;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }
+
+  // ✅ INTERFACE PARA RESPUESTA PAGINADA
+  interface PaginatedCategoryResult {
+    data: CategoryResponseDto[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  }
   
   @Injectable()
   export class CategoryService {
@@ -62,6 +83,23 @@ import {
     async findAllActive(): Promise<CategoryResponseDto[]> {
       const categories = await this.categoryRepository.findAllActive();
       return categories.map(category => this.mapToResponseDto(category));
+    }
+
+    // ✅ NUEVO MÉTODO: Buscar categorías con filtros y paginación
+    async findWithFilters(filters: CategoryFilters = {}): Promise<PaginatedCategoryResult> {
+      try {
+        this.logger.debug('Finding categories with filters:', filters);
+        
+        const result = await this.categoryRepository.findWithFilters(filters);
+        
+        return {
+          data: result.data.map(category => this.mapToResponseDto(category)),
+          pagination: result.pagination
+        };
+      } catch (error) {
+        this.logger.error('Error finding categories with filters:', error);
+        throw error;
+      }
     }
   
     async update(id: string, updateCategoryDto: UpdateCategoryDto): Promise<CategoryResponseDto> {
