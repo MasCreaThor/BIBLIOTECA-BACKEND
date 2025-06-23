@@ -294,12 +294,60 @@ export class LoanService {
       // Obtener todos los préstamos con datos poblados para análisis completo
       const allLoans = await this.loanRepository.findWithCompletePopulate({});
       
+      // ✅ NUEVO: Log de depuración para verificar los préstamos
+      this.logger.debug(`Total loans found: ${allLoans.length}`);
+      
+      // ✅ NUEVO: Verificar si los campos virtuales están presentes
+      if (allLoans.length > 0) {
+        const sampleLoan = allLoans[0];
+        this.logger.debug('Sample loan structure:', {
+          _id: sampleLoan._id,
+          dueDate: sampleLoan.dueDate,
+          returnedDate: sampleLoan.returnedDate,
+          isOverdue: sampleLoan.isOverdue,
+          daysOverdue: sampleLoan.daysOverdue,
+          status: sampleLoan.status?.name
+        });
+        
+        // ✅ NUEVO: Verificar todos los préstamos y sus fechas
+        this.logger.debug('All loans with due dates:', 
+          allLoans.map(loan => ({
+            _id: loan._id,
+            dueDate: loan.dueDate,
+            returnedDate: loan.returnedDate,
+            isOverdue: loan.isOverdue,
+            status: loan.status?.name
+          }))
+        );
+      }
+      
       // Calcular estadísticas básicas
       const totalLoans = allLoans.length;
       const activeLoans = allLoans.filter(loan => loan.status?.name === 'active').length;
       const returnedLoans = allLoans.filter(loan => loan.status?.name === 'returned').length;
       const overdueLoans = allLoans.filter(loan => loan.isOverdue).length;
       const lostLoans = allLoans.filter(loan => loan.status?.name === 'lost').length;
+
+      // ✅ NUEVO: Log detallado de cada tipo de préstamo
+      this.logger.debug('Loan statistics breakdown:', {
+        totalLoans,
+        activeLoans,
+        returnedLoans,
+        overdueLoans,
+        lostLoans
+      });
+
+      // ✅ NUEVO: Verificar préstamos vencidos específicamente
+      const overdueLoansDetails = allLoans.filter(loan => loan.isOverdue);
+      this.logger.debug(`Overdue loans details (${overdueLoansDetails.length}):`, 
+        overdueLoansDetails.map(loan => ({
+          _id: loan._id,
+          dueDate: loan.dueDate,
+          returnedDate: loan.returnedDate,
+          isOverdue: loan.isOverdue,
+          status: loan.status?.name
+        }))
+      );
 
       // Calcular duración promedio de préstamos devueltos
       const returnedLoansWithDuration = allLoans.filter(loan => 

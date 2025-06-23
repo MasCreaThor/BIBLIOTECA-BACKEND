@@ -75,6 +75,12 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
           person.fullName = `${person.firstName} ${person.lastName}`;
         }
         
+        // ✅ CORRECCIÓN: Calcular manualmente los campos virtuales
+        const now = new Date();
+        const dueDate = new Date(loanObj.dueDate);
+        const isOverdue = !loanObj.returnedDate && now > dueDate;
+        const daysOverdue = isOverdue ? Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+        
         // ✅ CORRECCIÓN: Mapear campos para mantener compatibilidad con el frontend
         return {
           ...loanObj,
@@ -91,7 +97,10 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
           status: loanObj.statusId,
           loanedByUser: loanObj.loanedBy,
           returnedByUser: loanObj.returnedBy,
-          renewedByUser: loanObj.renewedBy
+          renewedByUser: loanObj.renewedBy,
+          // ✅ NUEVO: Agregar campos virtuales calculados manualmente
+          isOverdue,
+          daysOverdue
         };
       });
     } catch (error: unknown) {
@@ -163,6 +172,12 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         person.fullName = `${person.firstName} ${person.lastName}`;
       }
       
+      // ✅ CORRECCIÓN: Calcular manualmente los campos virtuales
+      const now = new Date();
+      const dueDate = new Date(loanObj.dueDate);
+      const isOverdue = !loanObj.returnedDate && now > dueDate;
+      const daysOverdue = isOverdue ? Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+      
       // ✅ CORRECCIÓN: Mapear campos para mantener compatibilidad con el frontend
       return {
         ...loanObj,
@@ -179,7 +194,10 @@ export class LoanRepository extends BaseRepositoryImpl<LoanDocument> {
         status: loanObj.statusId,
         loanedByUser: loanObj.loanedBy,
         returnedByUser: loanObj.returnedBy,
-        renewedByUser: loanObj.renewedBy
+        renewedByUser: loanObj.renewedBy,
+        // ✅ NUEVO: Agregar campos virtuales calculados manualmente
+        isOverdue,
+        daysOverdue
       };
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error);
