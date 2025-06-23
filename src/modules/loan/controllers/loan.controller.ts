@@ -134,6 +134,38 @@ export class LoanController {
   // ✅ RUTAS ESPECÍFICAS PRIMERO - Estas van ANTES que las rutas con parámetros
 
   /**
+   * ✅ NUEVO: Obtener estadísticas del dashboard de devoluciones
+   * GET /api/loans/returns-dashboard-stats
+   */
+  @Get('returns-dashboard-stats')
+  async getReturnsDashboardStats(): Promise<ApiResponseDto<{
+    totalActive: number;
+    totalOverdue: number;
+    totalDueSoon: number;
+    totalReturnsToday: number;
+  }>> {
+    this.logger.debug('Getting returns dashboard statistics');
+
+    try {
+      const stats = await this.loanService.getReturnsDashboardStats();
+      
+      this.logger.debug('Returns dashboard statistics:', stats);
+      return ApiResponseDto.success(
+        stats,
+        'Estadísticas del dashboard de devoluciones obtenidas exitosamente',
+        HttpStatus.OK
+      );
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error('Error getting returns dashboard statistics', {
+        error: errorMessage,
+        stack: getErrorStack(error)
+      });
+      throw new Error(errorMessage);
+    }
+  }
+
+  /**
    * Obtener estadísticas de préstamos
    * GET /api/loans/statistics
    */

@@ -1013,4 +1013,70 @@ export class LoanService {
       };
     }
   }
+
+  /**
+   * ✅ NUEVO: Obtener estadísticas para el dashboard de devoluciones
+   */
+  async getReturnsDashboardStats(): Promise<{
+    totalActive: number;
+    totalOverdue: number;
+    totalDueSoon: number;
+    totalReturnsToday: number;
+  }> {
+    this.logger.debug('Getting returns dashboard statistics');
+
+    try {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Fecha para "vence pronto" (próximos 3 días)
+      const soonDate = new Date(today);
+      soonDate.setDate(soonDate.getDate() + 3);
+
+      // Obtener todos los préstamos activos (no devueltos)
+      const activeLoans = await this.loanRepository.findWithCompletePopulate({
+        returnedDate: null
+      });
+
+      // Calcular estadísticas
+      const totalActive = activeLoans.length;
+      
+      const totalOverdue = activeLoans.filter(loan => 
+        new Date(loan.dueDate) < now
+      ).length;
+
+      const totalDueSoon = activeLoans.filter(loan => {
+        const dueDate = new Date(loan.dueDate);
+        return dueDate >= tomorrow && dueDate <= soonDate;
+      }).length;
+
+      // Obtener devoluciones de hoy
+      const returnsToday = await this.loanRepository.findWithCompletePopulate({
+        returnedDate: {
+          $gte: today,
+          $lt: tomorrow
+        }
+      });
+      const totalReturnsToday = returnsToday.length;
+
+      const stats = {
+        totalActive,
+        totalOverdue,
+        totalDueSoon,
+        totalReturnsToday
+      };
+
+      this.logger.debug('Returns dashboard statistics:', stats);
+      return stats;
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      this.logger.error('Error getting returns dashboard statistics', {
+        error: errorMessage,
+        stack: getErrorStack(error)
+      });
+      throw error;
+    }
+  }
 }
