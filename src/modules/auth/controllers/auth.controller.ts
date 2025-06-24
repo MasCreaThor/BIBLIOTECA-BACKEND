@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Get, Put, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { AuthService } from '@modules/auth/services';
 import { LoggerService } from '@shared/services/logger.service';
-import { LoginDto, LoginResponseDto, ChangePasswordDto } from '@modules/auth/dto';
+import { LoginDto, LoginResponseDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from '@modules/auth/dto';
 import { ApiResponseDto } from '@shared/dto/base.dto';
 import { Public, CurrentUser, CurrentUserId } from '@shared/decorators/auth.decorators';
 import { JwtUser } from '@shared/decorators/auth.decorators';
@@ -58,6 +58,52 @@ export class AuthController {
   }
 
   /**
+   * Solicitar recuperación de contraseña
+   * POST /api/auth/forgot-password
+   */
+  @Public()
+  @Post('forgot-password')
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto): Promise<ApiResponseDto<any>> {
+    try {
+      this.logger.debug(`Password reset requested for email: ${forgotPasswordDto.email}`);
+
+      await this.authService.forgotPassword(forgotPasswordDto);
+
+      return ApiResponseDto.success(
+        null, 
+        'Si el email existe en nuestro sistema, recibirás un enlace de recuperación', 
+        HttpStatus.OK
+      );
+    } catch (error) {
+      this.logger.error(`Error in forgot password for email: ${forgotPasswordDto.email}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restablecer contraseña con token
+   * POST /api/auth/reset-password
+   */
+  @Public()
+  @Post('reset-password')
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto): Promise<ApiResponseDto<any>> {
+    try {
+      this.logger.debug(`Password reset attempt with token: ${resetPasswordDto.token}`);
+
+      await this.authService.resetPassword(resetPasswordDto);
+
+      return ApiResponseDto.success(
+        null, 
+        'Contraseña restablecida exitosamente', 
+        HttpStatus.OK
+      );
+    } catch (error) {
+      this.logger.error(`Error in reset password with token: ${resetPasswordDto.token}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Cambiar contraseña
    * PUT /api/auth/change-password
    */
@@ -75,6 +121,28 @@ export class AuthController {
       return ApiResponseDto.success(null, 'Contraseña cambiada exitosamente', HttpStatus.OK);
     } catch (error) {
       this.logger.error(`Error changing password for user: ${userId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar perfil del usuario actual
+   * PUT /api/auth/profile
+   */
+  @Put('profile')
+  @HttpCode(HttpStatus.OK)
+  async updateProfile(
+    @CurrentUserId() userId: string,
+    @Body() updateProfileDto: { firstName?: string; lastName?: string; email?: string },
+  ): Promise<ApiResponseDto<any>> {
+    try {
+      this.logger.log(`Profile update request for user: ${userId}`);
+
+      const updatedUser = await this.authService.updateProfile(userId, updateProfileDto);
+
+      return ApiResponseDto.success(updatedUser, 'Perfil actualizado exitosamente', HttpStatus.OK);
+    } catch (error) {
+      this.logger.error(`Error updating profile for user: ${userId}`, error);
       throw error;
     }
   }

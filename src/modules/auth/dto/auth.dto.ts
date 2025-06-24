@@ -16,6 +16,12 @@ export class LoginDto {
 }
 
 export class CreateUserDto {
+  @IsString({ message: 'El nombre es requerido' })
+  firstName!: string;
+
+  @IsString({ message: 'El apellido es requerido' })
+  lastName!: string;
+
   @IsEmail({}, { message: 'Debe proporcionar un email válido' })
   @Transform(({ value }: { value: string }) => value?.toLowerCase().trim())
   email!: string;
@@ -29,6 +35,14 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto {
+  @IsOptional()
+  @IsString({ message: 'El nombre debe ser un string' })
+  firstName?: string;
+
+  @IsOptional()
+  @IsString({ message: 'El apellido debe ser un string' })
+  lastName?: string;
+
   @IsOptional()
   @IsEmail({}, { message: 'Debe proporcionar un email válido' })
   @Transform(({ value }: { value: string }) => value?.toLowerCase().trim())
@@ -53,10 +67,27 @@ export class ChangePasswordDto {
   newPassword!: string;
 }
 
+export class ForgotPasswordDto {
+  @IsEmail({}, { message: 'Debe proporcionar un email válido' })
+  @Transform(({ value }: { value: string }) => value?.toLowerCase().trim())
+  email!: string;
+}
+
+export class ResetPasswordDto {
+  @IsString({ message: 'El token es requerido' })
+  token!: string;
+
+  @IsString({ message: 'La nueva contraseña es requerida' })
+  @MinLength(8, { message: 'La nueva contraseña debe tener al menos 8 caracteres' })
+  newPassword!: string;
+}
+
 export class LoginResponseDto {
   access_token!: string;
   user!: {
     id: string;
+    firstName: string;
+    lastName: string;
     email: string;
     role: string;
     lastLogin: Date;
@@ -65,10 +96,40 @@ export class LoginResponseDto {
 
 export class UserResponseDto {
   _id!: string;
+  firstName!: string;
+  lastName!: string;
   email!: string;
   role!: string;
   active!: boolean;
   lastLogin?: Date;
   createdAt!: Date;
   updatedAt!: Date;
+}
+
+export class UpdateProfileDto {
+  @IsOptional()
+  @IsString({ message: 'El nombre debe ser una cadena de texto' })
+  firstName?: string;
+
+  @IsOptional()
+  @IsString({ message: 'El apellido debe ser una cadena de texto' })
+  lastName?: string;
+
+  @IsOptional()
+  @IsEmail({}, { message: 'Debe proporcionar un email válido' })
+  @Transform(({ value }: { value: string }) => value?.toLowerCase().trim())
+  email?: string;
+
+  @IsOptional()
+  @IsString({ message: 'La contraseña actual es requerida' })
+  currentPassword?: string;
+
+  @IsOptional()
+  @IsString({ message: 'La nueva contraseña es requerida' })
+  @MinLength(8, { message: 'La nueva contraseña debe tener al menos 8 caracteres' })
+  password?: string;
+
+  @IsOptional()
+  @IsEnum(['admin', 'librarian'], { message: 'El rol debe ser admin o librarian' })
+  role?: 'admin' | 'librarian';
 }

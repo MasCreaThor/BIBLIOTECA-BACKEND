@@ -218,3 +218,5 @@ export class ObjectUtils {
     return JSON.parse(JSON.stringify(obj)) as T;
   }
 }
+
+export * from './error-utils';

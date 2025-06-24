@@ -8,6 +8,8 @@ import { Document, Types } from 'mongoose';
 @Schema({
   timestamps: true,
   collection: 'people',
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 })
 export class Person extends Document {
   @Prop({
@@ -56,14 +58,17 @@ export class Person extends Document {
   @Prop()
   updatedAt!: Date;
 
-  // Virtual para el nombre completo
-  get fullName(): string {
-    return `${this.firstName} ${this.lastName}`;
-  }
+  // Virtual property para TypeScript
+  fullName?: string;
 }
 
 export type PersonDocument = Person & Document;
 export const PersonSchema = SchemaFactory.createForClass(Person);
+
+// Virtual para el nombre completo
+PersonSchema.virtual('fullName').get(function() {
+  return `${this.firstName} ${this.lastName}`;
+});
 
 // Índices para optimización
 //PersonSchema.index({ firstName: 1, lastName: 1 });

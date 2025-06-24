@@ -1,0 +1,1 @@
+export { SystemConfig, SystemConfigDocument, SystemConfigSchema } from './system-config.model'; 

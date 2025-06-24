@@ -60,7 +60,8 @@ export class ResourceService {
       notes, 
       isbn,
       googleBooksId,      // ← AGREGADO
-      coverImageUrl       // ← AGREGADO (nota: es coverImageUrl, no imageUrl)
+      coverImageUrl,      // ← AGREGADO (nota: es coverImageUrl, no imageUrl)
+      totalQuantity       // ← AGREGADO: Campo de cantidad total
     } = createResourceDto;
 
     try {
@@ -75,7 +76,7 @@ export class ResourceService {
         }
       }
 
-      // ✅ CORRECCIÓN: Agregar googleBooksId y coverImageUrl al resourceData
+      // ✅ CORRECCIÓN: Agregar googleBooksId, coverImageUrl y totalQuantity al resourceData
       const resourceData = {
         typeId: MongoUtils.toObjectId(typeId),
         categoryId: MongoUtils.toObjectId(categoryId),
@@ -88,7 +89,8 @@ export class ResourceService {
         notes: notes?.trim(),
         isbn,
         googleBooksId: googleBooksId?.trim(),      // ← AGREGADO
-        coverImageUrl: coverImageUrl?.trim(),      // ← AGREGADO
+        coverImageUrl: coverImageUrl?.trim(),      // ← AGREGADO (nota: es coverImageUrl, no imageUrl)
+        totalQuantity: totalQuantity || 1,         // ← AGREGADO: Campo de cantidad total
         available: true,
       };
 
@@ -142,11 +144,13 @@ export class ResourceService {
     page: number = 1,
     limit: number = 20,
   ): Promise<PaginatedResponseDto<ResourceResponseDto>> {
-    const result = await this.resourceRepository.findWithFilters(filters, page, limit);
-
-    const mappedData = result.data.map((resource) => this.mapToResponseDto(resource));
-
-    return new PaginatedResponseDto(mappedData, result.total, result.page, limit);
+    const allResources = await this.resourceRepository.findWithFilters(filters);
+    const total = allResources.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedResources = allResources.slice(startIndex, endIndex);
+    const mappedData = paginatedResources.map((resource: any) => this.mapToResponseDto(resource));
+    return new PaginatedResponseDto(mappedData, total, page, limit);
   }
 
   /**
@@ -154,11 +158,9 @@ export class ResourceService {
    */
   async findByISBN(isbn: string): Promise<ResourceResponseDto> {
     const resource = await this.resourceRepository.findByISBN(isbn);
-
     if (!resource) {
-      throw new NotFoundException('Recurso no encontrado con ese ISBN');
+      throw new NotFoundException('Recurso no encontrado');
     }
-
     return this.mapToResponseDto(resource);
   }
 
@@ -217,7 +219,13 @@ export class ResourceService {
 
       this.logger.log(`Resource updated successfully: ${updatedResource.title}`);
 
-      return this.mapToResponseDto(updatedResource);
+      // ✅ CORRECCIÓN: Obtener el recurso actualizado con datos populados
+      const populatedResource = await this.resourceRepository.findByIdWithPopulate(id);
+      if (!populatedResource) {
+        throw new NotFoundException('Error al obtener el recurso actualizado');
+      }
+
+      return this.mapToResponseDto(populatedResource);
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -270,7 +278,13 @@ export class ResourceService {
 
     this.logger.log(`Resource availability updated: ${updatedResource.title} - Available: ${available}`);
 
-    return this.mapToResponseDto(updatedResource);
+    // ✅ CORRECCIÓN: Obtener el recurso actualizado con datos populados
+    const populatedResource = await this.resourceRepository.findByIdWithPopulate(id);
+    if (!populatedResource) {
+      throw new NotFoundException('Error al obtener el recurso actualizado');
+    }
+
+    return this.mapToResponseDto(populatedResource);
   }
 
   /**
@@ -321,24 +335,76 @@ export class ResourceService {
   }
 
   /**
-   * ✅ CORRECCIÓN: Mapear entidad a DTO de respuesta (incluir campos faltantes)
+   * ✅ CORRECCIÓN: Mapear entidad a DTO de respuesta (incluir campos populados)
    */
   private mapToResponseDto(resource: ResourceDocument): ResourceResponseDto {
     return {
       _id: (resource._id as any).toString(),
-      typeId: resource.typeId.toString(),
-      categoryId: resource.categoryId.toString(),
+      typeId: resource.typeId?.toString() || '',
+      categoryId: resource.categoryId?.toString() || '',
       title: resource.title,
-      authorIds: resource.authorIds.map(id => id.toString()),
-      publisherId: resource.publisherId?.toString(),
-      volumes: resource.volumes,
-      stateId: resource.stateId.toString(),
-      locationId: resource.locationId.toString(),
+      authorIds: resource.authorIds?.map(id => id?.toString()).filter(Boolean) || [],
+      publisherId: resource.publisherId?.toString() || undefined,
+      volumes: resource.totalQuantity,
+      stateId: resource.stateId?.toString() || '',
+      locationId: resource.locationId?.toString() || '',
       notes: resource.notes,
       available: resource.available,
       isbn: resource.isbn,
-      googleBooksId: resource.googleBooksId,        // ← AGREGADO
-      coverImageUrl: resource.coverImageUrl,        // ← AGREGADO
+      googleBooksId: resource.googleBooksId,
+      coverImageUrl: resource.coverImageUrl,
+      
+      // ✅ CAMPOS DE CANTIDAD PARA GESTIÓN DE PRÉSTAMOS
+      totalQuantity: resource.totalQuantity || 0,
+      currentLoansCount: resource.currentLoansCount || 0,
+      availableQuantity: (resource.totalQuantity || 0) - (resource.currentLoansCount || 0),
+      hasStock: (resource.totalQuantity || 0) > (resource.currentLoansCount || 0),
+      
+      // ✅ CAMPOS ADICIONALES PARA GESTIÓN
+      totalLoans: resource.totalLoans || 0,
+      lastLoanDate: resource.lastLoanDate,
+      
+      // ✅ CAMPOS POPULADOS
+      type: resource.typeId && typeof resource.typeId === 'object' ? {
+        _id: (resource.typeId as any)._id?.toString() || '',
+        name: (resource.typeId as any).name || '',
+        description: (resource.typeId as any).description || '',
+      } : undefined,
+      
+      category: resource.categoryId && typeof resource.categoryId === 'object' ? {
+        _id: (resource.categoryId as any)._id?.toString() || '',
+        name: (resource.categoryId as any).name || '',
+        description: (resource.categoryId as any).description || '',
+        color: (resource.categoryId as any).color || '',
+      } : undefined,
+      
+      authors: resource.authorIds && Array.isArray(resource.authorIds) && resource.authorIds.length > 0 && typeof resource.authorIds[0] === 'object' ? 
+        resource.authorIds.map((author: any) => ({
+          _id: author._id?.toString() || '',
+          name: author.name || '',
+          biography: author.biography || '',
+        })) : undefined,
+      
+      publisher: resource.publisherId && typeof resource.publisherId === 'object' ? {
+        _id: (resource.publisherId as any)._id?.toString() || '',
+        name: (resource.publisherId as any).name || '',
+        description: (resource.publisherId as any).description || '',
+      } : undefined,
+      
+      location: resource.locationId && typeof resource.locationId === 'object' ? {
+        _id: (resource.locationId as any)._id?.toString() || '',
+        name: (resource.locationId as any).name || '',
+        description: (resource.locationId as any).description || '',
+        code: (resource.locationId as any).code || '',
+      } : undefined,
+      
+      state: resource.stateId && typeof resource.stateId === 'object' ? {
+        _id: (resource.stateId as any)._id?.toString() || '',
+        name: (resource.stateId as any).name || '',
+        description: (resource.stateId as any).description || '',
+        color: (resource.stateId as any).color || '',
+      } : undefined,
+      
       createdAt: resource.createdAt,
       updatedAt: resource.updatedAt,
     };

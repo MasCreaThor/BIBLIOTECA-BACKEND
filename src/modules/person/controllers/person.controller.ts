@@ -119,24 +119,26 @@ export class PersonController {
   }
 
   /**
-   * Obtener persona por ID
-   * GET /api/people/:id
+   * ✅ CORREGIDO: Obtener estadísticas de personas
+   * GET /api/people/stats
    */
-  @Get(':id')
-  async findById(@Param('id') id: string): Promise<ApiResponseDto<PersonResponseDto>> {
+  @Get('stats')
+  async getStatistics(): Promise<
+    ApiResponseDto<{
+      total: number;
+      students: number;
+      teachers: number;
+      byGrade: Array<{ grade: string; count: number }>;
+    }>
+  > {
     try {
-      if (!MongoUtils.isValidObjectId(id)) {
-        this.logger.warn(`Invalid person ID format: ${id}`);
-        throw new Error('ID de persona inválido');
-      }
+      this.logger.debug('Getting people statistics');
 
-      this.logger.debug(`Finding person by ID: ${id}`);
+      const stats = await this.personService.getStatistics();
 
-      const person = await this.personService.findById(id);
-
-      return ApiResponseDto.success(person, 'Persona obtenida exitosamente', HttpStatus.OK);
+      return ApiResponseDto.success(stats, 'Estadísticas de personas obtenidas exitosamente', HttpStatus.OK);
     } catch (error) {
-      this.logger.error(`Error finding person by ID: ${id}`, error);
+      this.logger.error('Error getting people statistics', error);
       throw error;
     }
   }
@@ -162,6 +164,29 @@ export class PersonController {
       return ApiResponseDto.success(person, 'Persona obtenida exitosamente', HttpStatus.OK);
     } catch (error) {
       this.logger.error(`Error finding person by document: ${documentNumber}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtener persona por ID
+   * GET /api/people/:id
+   */
+  @Get(':id')
+  async findById(@Param('id') id: string): Promise<ApiResponseDto<PersonResponseDto>> {
+    try {
+      if (!MongoUtils.isValidObjectId(id)) {
+        this.logger.warn(`Invalid person ID format: ${id}`);
+        throw new Error('ID de persona inválido');
+      }
+
+      this.logger.debug(`Finding person by ID: ${id}`);
+
+      const person = await this.personService.findById(id);
+
+      return ApiResponseDto.success(person, 'Persona obtenida exitosamente', HttpStatus.OK);
+    } catch (error) {
+      this.logger.error(`Error finding person by ID: ${id}`, error);
       throw error;
     }
   }
@@ -258,31 +283,6 @@ export class PersonController {
       return ApiResponseDto.success(null, 'Persona eliminada exitosamente', HttpStatus.OK);
     } catch (error) {
       this.logger.error(`Error deleting person: ${id}`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtener estadísticas de personas
-   * GET /api/people/stats/summary
-   */
-  @Get('stats/summary')
-  async getStatistics(): Promise<
-    ApiResponseDto<{
-      total: number;
-      students: number;
-      teachers: number;
-      byGrade: Array<{ grade: string; count: number }>;
-    }>
-  > {
-    try {
-      this.logger.debug('Getting people statistics');
-
-      const stats = await this.personService.getStatistics();
-
-      return ApiResponseDto.success(stats, 'Estadísticas obtenidas exitosamente', HttpStatus.OK);
-    } catch (error) {
-      this.logger.error('Error getting people statistics', error);
       throw error;
     }
   }

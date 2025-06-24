@@ -12,6 +12,20 @@ import { Document, Types } from 'mongoose';
 export class User extends Document {
   @Prop({
     required: true,
+    trim: true,
+    maxlength: 50,
+  })
+  firstName!: string;
+
+  @Prop({
+    required: true,
+    trim: true,
+    maxlength: 50,
+  })
+  lastName!: string;
+
+  @Prop({
+    required: true,
     unique: true,
     lowercase: true,
     trim: true,

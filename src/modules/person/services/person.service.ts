@@ -408,7 +408,7 @@ export class PersonService {
       _id: (person._id as any).toString(),
       firstName: person.firstName,
       lastName: person.lastName,
-      fullName: person.fullName,
+      fullName: person.fullName || `${person.firstName} ${person.lastName}`,
       documentNumber: person.documentNumber,
       grade: person.grade,
       personTypeId: person.personTypeId.toString(),

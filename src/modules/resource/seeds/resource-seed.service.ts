@@ -73,13 +73,29 @@ export class ResourceSeedService {
     ];
 
     for (const resourceTypeData of resourceTypes) {
-      const existing = await this.resourceTypeRepository.findByName(resourceTypeData.name);
-
-      if (!existing) {
-        await this.resourceTypeRepository.create(resourceTypeData);
-        this.logger.log(`Created resource type: ${resourceTypeData.name}`);
-      } else {
-        this.logger.debug(`Resource type already exists: ${resourceTypeData.name}`);
+      try {
+        // Usar upsert para evitar errores de duplicados
+        const result = await this.resourceTypeRepository.findOneAndUpdate(
+          { name: resourceTypeData.name },
+          resourceTypeData,
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+        
+        if (result) {
+          this.logger.log(`Resource type processed: ${resourceTypeData.name}`);
+        }
+      } catch (error) {
+        // Si hay un error de duplicado, verificar si ya existe
+        if ((error as any).code === 11000) {
+          const existing = await this.resourceTypeRepository.findByNameIncludeInactive(resourceTypeData.name);
+          if (existing) {
+            this.logger.debug(`Resource type already exists: ${resourceTypeData.name}`);
+          } else {
+            this.logger.error(`Unexpected duplicate key error for: ${resourceTypeData.name}`, error);
+          }
+        } else {
+          this.logger.error(`Error processing resource type: ${resourceTypeData.name}`, error);
+        }
       }
     }
 

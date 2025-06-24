@@ -41,7 +41,7 @@ export class GoogleBooksResourceService {
    * Crear recurso desde Google Books
    */
   async createFromGoogleBooks(createDto: ResourceFromGoogleBooksDto): Promise<ResourceResponseDto> {
-    const { googleBooksId, categoryId, locationId, volumes, notes } = createDto;
+    const { googleBooksId, categoryId, locationId, stateId, volumes, notes, totalQuantity } = createDto;
 
     try {
       // Obtener información del libro desde Google Books
@@ -95,10 +95,22 @@ export class GoogleBooksResourceService {
         throw new BadRequestException('Tipo de recurso "book" no encontrado');
       }
 
-      // Obtener el estado "bueno" por defecto
-      const goodState = await this.resourceStateRepository.findByName('good');
-      if (!goodState) {
-        throw new BadRequestException('Estado de recurso "good" no encontrado');
+      // ✅ NUEVO: Usar el estado proporcionado o el estado "bueno" por defecto
+      let finalStateId: string;
+      if (stateId) {
+        // Verificar que el estado proporcionado existe
+        const providedState = await this.resourceStateRepository.findById(stateId);
+        if (!providedState) {
+          throw new BadRequestException('Estado de recurso proporcionado no encontrado');
+        }
+        finalStateId = stateId;
+      } else {
+        // Usar el estado "bueno" por defecto
+        const goodState = await this.resourceStateRepository.findByName('good');
+        if (!goodState) {
+          throw new BadRequestException('Estado de recurso "good" no encontrado');
+        }
+        finalStateId = (goodState._id as any).toString();
       }
 
       // ✅ CORRECCIÓN: Extraer la mejor URL de imagen disponible
@@ -107,7 +119,7 @@ export class GoogleBooksResourceService {
       // ✅ DEBUG: Log para verificar URL extraída
       console.log('🖼️ Extracted cover image URL:', coverImageUrl);
 
-      // ✅ CORRECCIÓN: Crear el recurso con coverImageUrl (no imageUrl)
+      // ✅ CORRECCIÓN: Crear el recurso con coverImageUrl (no imageUrl) y totalQuantity del DTO
       const createResourceDto: CreateResourceDto = {
         typeId: (bookType._id as any).toString(),
         categoryId,
@@ -115,8 +127,9 @@ export class GoogleBooksResourceService {
         authorIds,
         publisherId,
         volumes: volumes || 1,
-        stateId: (goodState._id as any).toString(),
+        stateId: finalStateId,
         locationId,
+        totalQuantity: totalQuantity || 1,
         notes,
         isbn: isbn || undefined,
         googleBooksId,
@@ -128,7 +141,9 @@ export class GoogleBooksResourceService {
         title: createResourceDto.title,
         googleBooksId: createResourceDto.googleBooksId,
         coverImageUrl: createResourceDto.coverImageUrl,
-        hasCoverImage: !!createResourceDto.coverImageUrl
+        hasCoverImage: !!createResourceDto.coverImageUrl,
+        totalQuantity: createResourceDto.totalQuantity,
+        stateId: createResourceDto.stateId
       });
 
       const resource = await this.resourceService.create(createResourceDto);
@@ -139,7 +154,8 @@ export class GoogleBooksResourceService {
         title: resource.title,
         googleBooksId: resource.googleBooksId,
         coverImageUrl: resource.coverImageUrl,
-        hasCoverImage: !!resource.coverImageUrl
+        hasCoverImage: !!resource.coverImageUrl,
+        totalQuantity: resource.totalQuantity
       });
 
       this.logger.log(`Resource created from Google Books: ${bookData.title}${coverImageUrl ? ' with cover image' : ''}`);

@@ -31,7 +31,7 @@ export class UserService {
    * Crear un nuevo usuario del sistema
    */
   async create(createUserDto: CreateUserDto): Promise<UserResponseDto> {
-    const { email, password, role } = createUserDto;
+    const { firstName, lastName, email, password, role } = createUserDto;
 
     try {
       // Verificar si el email ya existe
@@ -51,6 +51,8 @@ export class UserService {
 
       // Crear usuario
       const userData = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
         email,
         password: hashedPassword,
         role: role,
@@ -140,6 +142,16 @@ export class UserService {
 
     try {
       const updateData: any = {};
+
+      // Actualizar firstName si se proporciona
+      if (updateUserDto.firstName) {
+        updateData.firstName = updateUserDto.firstName.trim();
+      }
+
+      // Actualizar lastName si se proporciona
+      if (updateUserDto.lastName) {
+        updateData.lastName = updateUserDto.lastName.trim();
+      }
 
       // Actualizar email si se proporciona
       if (updateUserDto.email && updateUserDto.email !== existingUser.email) {
@@ -309,6 +321,8 @@ export class UserService {
   private mapToResponseDto(user: UserDocument): UserResponseDto {
     return {
       _id: (user._id as any).toString(),
+      firstName: user.firstName,
+      lastName: user.lastName,
       email: user.email,
       role: user.role,
       active: user.active,

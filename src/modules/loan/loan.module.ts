@@ -7,6 +7,7 @@ import {
   LoanController,
   ReturnController,
   OverdueController,
+  CanBorrowController
 } from './controllers';
 
 // Servicios
@@ -61,6 +62,7 @@ import { Resource, ResourceSchema, ResourceState, ResourceStateSchema } from '@m
     LoanController,
     ReturnController,
     OverdueController,
+    CanBorrowController
   ],
   providers: [
     // Servicios del módulo

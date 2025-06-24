@@ -11,6 +11,8 @@ import { ValidationUtils } from '@shared/utils';
 interface AdminCredentials {
   email: string;
   password: string;
+  firstName: string;
+  lastName: string;
 }
 
 /**
@@ -112,33 +114,72 @@ export class AdminBootstrapSimpleCommand {
         break;
       }
 
+      // Solicitar nombre
+      let firstName: string;
+      while (true) {
+        firstName = await question('👤 Ingresa el nombre del administrador: ');
+        
+        if (!firstName.trim()) {
+          console.log('❌ El nombre es requerido.\n');
+          continue;
+        }
+
+        if (firstName.trim().length < 2) {
+          console.log('❌ El nombre debe tener al menos 2 caracteres.\n');
+          continue;
+        }
+
+        break;
+      }
+
+      // Solicitar apellido
+      let lastName: string;
+      while (true) {
+        lastName = await question('👤 Ingresa el apellido del administrador: ');
+        
+        if (!lastName.trim()) {
+          console.log('❌ El apellido es requerido.\n');
+          continue;
+        }
+
+        if (lastName.trim().length < 2) {
+          console.log('❌ El apellido debe tener al menos 2 caracteres.\n');
+          continue;
+        }
+
+        break;
+      }
+
       // Solicitar contraseña
       let password: string;
       while (true) {
-        console.log('\n🔑 Ingresa la contraseña del administrador:');
-        console.log('   Requisitos:');
-        console.log('   - Mínimo 8 caracteres');
-        console.log('   - Al menos una mayúscula (A-Z)');
-        console.log('   - Al menos una minúscula (a-z)');
-        console.log('   - Al menos un número (0-9)');
-        console.log('   - Al menos un carácter especial (!@#$%^&*)\n');
-        
-        password = await question('Contraseña: ');
+        password = await question('🔒 Ingresa la contraseña del administrador: ');
         
         if (!password.trim()) {
           console.log('❌ La contraseña es requerida.\n');
           continue;
         }
 
-        const validation = this.passwordService.validatePasswordStrength(password);
-        if (!validation.isValid) {
-          console.log('❌ La contraseña no cumple los requisitos:');
-          validation.errors.forEach((error: string) => console.log(`   - ${error}`));
-          console.log('');
+        if (password.length < 8) {
+          console.log('❌ La contraseña debe tener al menos 8 caracteres.\n');
           continue;
         }
 
-        const confirmPassword = await question('Confirmar contraseña: ');
+        // Validar fortaleza de contraseña
+        const passwordValidation = this.passwordService.validatePasswordStrength(password);
+        if (!passwordValidation.isValid) {
+          console.log(`❌ ${passwordValidation.errors.join('. ')}\n`);
+          continue;
+        }
+
+        break;
+      }
+
+      // Confirmar contraseña
+      let confirmPassword: string;
+      while (true) {
+        confirmPassword = await question('🔒 Confirma la contraseña: ');
+        
         if (password !== confirmPassword) {
           console.log('❌ Las contraseñas no coinciden.\n');
           continue;
@@ -147,10 +188,17 @@ export class AdminBootstrapSimpleCommand {
         break;
       }
 
-      return { email: email.trim(), password };
-
-    } finally {
       rl.close();
+
+      return {
+        email: email.trim(),
+        password,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      };
+    } catch (error) {
+      rl.close();
+      throw error;
     }
   }
 
@@ -161,6 +209,7 @@ export class AdminBootstrapSimpleCommand {
     });
 
     console.log('\n📋 RESUMEN DE LA CONFIGURACIÓN:');
+    console.log(`   Nombre: ${credentials.firstName} ${credentials.lastName}`);
     console.log(`   Email: ${credentials.email}`);
     console.log(`   Rol: Administrador`);
     console.log(`   Estado: Activo`);
@@ -185,6 +234,8 @@ export class AdminBootstrapSimpleCommand {
 
     // Crear administrador
     const adminData = {
+      firstName: credentials.firstName,
+      lastName: credentials.lastName,
       email: credentials.email.toLowerCase().trim(),
       password: hashedPassword,
       role: 'admin' as const,
@@ -194,7 +245,7 @@ export class AdminBootstrapSimpleCommand {
     await this.userRepository.create(adminData);
     
     // Log seguro (sin contraseña)
-    this.logger.log(`First admin user created via CLI: ${credentials.email}`);
+    this.logger.log(`First admin user created via CLI: ${credentials.firstName} ${credentials.lastName} (${credentials.email})`);
   }
 
   /**

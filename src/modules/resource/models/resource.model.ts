@@ -1,4 +1,4 @@
-// src/modules/resource/models/resource.model.ts
+// src/modules/resource/models/resource.model.ts - ACTUALIZADO CON STOCK
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
@@ -44,12 +44,43 @@ export class Resource extends Document {
   })
   publisherId?: Types.ObjectId;
 
+  // ✅ MODIFICADO: Campo de cantidad total (renombrado de volumes)
   @Prop({
     type: Number,
     min: 1,
     default: 1,
+    required: true,
   })
-  volumes?: number;
+  totalQuantity!: number;
+
+  @Prop({
+    type: Number,
+    min: 0,
+    default: 0,
+  })
+  currentLoansCount!: number;
+
+  // ✅ NUEVO: Campos para manejo granular de stock
+  @Prop({
+    type: Number,
+    min: 0,
+    default: 0,
+  })
+  lostQuantity!: number;
+
+  @Prop({
+    type: Number,
+    min: 0,
+    default: 0,
+  })
+  damagedQuantity!: number;
+
+  @Prop({
+    type: Number,
+    min: 0,
+    default: 0,
+  })
+  maintenanceQuantity!: number;
 
   @Prop({
     required: true,
@@ -78,13 +109,12 @@ export class Resource extends Document {
   })
   googleBooksId?: string;
 
-  // ✅ CORRECCIÓN: Campo para URL de imagen de portada
   @Prop({
     type: String,
     sparse: true,
     validate: {
       validator: function(url: string) {
-        if (!url) return true; // Optional field
+        if (!url) return true;
         try {
           new URL(url);
           return true;
@@ -127,10 +157,64 @@ export class Resource extends Document {
 
   @Prop()
   updatedAt!: Date;
+
+  get availableQuantity(): number {
+    return Math.max(0, this.totalQuantity - this.currentLoansCount - this.lostQuantity - this.damagedQuantity - this.maintenanceQuantity);
+  }
+
+  get hasStock(): boolean {
+    return this.available && this.availableQuantity > 0;
+  }
+
+  // ✅ NUEVO: Getter para cantidad total no disponible
+  get unavailableQuantity(): number {
+    return this.lostQuantity + this.damagedQuantity + this.maintenanceQuantity;
+  }
+
+  // ✅ NUEVO: Getter para verificar si hay unidades perdidas
+  get hasLostUnits(): boolean {
+    return this.lostQuantity > 0;
+  }
+
+  // ✅ NUEVO: Getter para verificar si hay unidades dañadas
+  get hasDamagedUnits(): boolean {
+    return this.damagedQuantity > 0;
+  }
+
+  // ✅ NUEVO: Getter para verificar si hay unidades en mantenimiento
+  get hasMaintenanceUnits(): boolean {
+    return this.maintenanceQuantity > 0;
+  }
 }
 
 export type ResourceDocument = Resource & Document;
 export const ResourceSchema = SchemaFactory.createForClass(Resource);
+
+// Virtuals
+ResourceSchema.virtual('availableQuantity').get(function(this: ResourceDocument) {
+  return Math.max(0, this.totalQuantity - this.currentLoansCount - this.lostQuantity - this.damagedQuantity - this.maintenanceQuantity);
+});
+
+ResourceSchema.virtual('hasStock').get(function(this: ResourceDocument) {
+  return this.available && (this.totalQuantity - this.currentLoansCount - this.lostQuantity - this.damagedQuantity - this.maintenanceQuantity) > 0;
+});
+
+// ✅ NUEVO: Virtuals para el nuevo sistema de stock
+ResourceSchema.virtual('unavailableQuantity').get(function(this: ResourceDocument) {
+  return this.lostQuantity + this.damagedQuantity + this.maintenanceQuantity;
+});
+
+ResourceSchema.virtual('hasLostUnits').get(function(this: ResourceDocument) {
+  return this.lostQuantity > 0;
+});
+
+ResourceSchema.virtual('hasDamagedUnits').get(function(this: ResourceDocument) {
+  return this.damagedQuantity > 0;
+});
+
+ResourceSchema.virtual('hasMaintenanceUnits').get(function(this: ResourceDocument) {
+  return this.maintenanceQuantity > 0;
+});
 
 // Índices para optimización
 ResourceSchema.index({ title: 'text' });
@@ -142,13 +226,26 @@ ResourceSchema.index({ locationId: 1 });
 ResourceSchema.index({ authorIds: 1 });
 ResourceSchema.index({ publisherId: 1 });
 
+ResourceSchema.index({ totalQuantity: 1 });
+ResourceSchema.index({ currentLoansCount: 1 });
+ResourceSchema.index({ available: 1, currentLoansCount: 1 });
+
 // Índice compuesto para búsquedas
 ResourceSchema.index({ 
   title: 'text', 
-  isbn: 'text' 
+  isbn: 'text',
+  notes: 'text'
 }, {
   weights: {
     title: 10,
-    isbn: 5
+    isbn: 5,
+    notes: 3
   }
 });
+
+// ✅ NUEVO: Índices para los nuevos campos de stock
+ResourceSchema.index({ lostQuantity: 1 });
+ResourceSchema.index({ damagedQuantity: 1 });
+ResourceSchema.index({ maintenanceQuantity: 1 });
+ResourceSchema.index({ available: 1, lostQuantity: 1 });
+ResourceSchema.index({ available: 1, damagedQuantity: 1 });

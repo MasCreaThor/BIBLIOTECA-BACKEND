@@ -18,7 +18,7 @@ import {
   import { ApiResponseDto, PaginatedResponseDto } from '@shared/dto/base.dto';
   import { Roles } from '@shared/decorators/auth.decorators';
   import { UserRole } from '@shared/guards/roles.guard';
-  import { ValidationUtils, MongoUtils } from '@shared/utils';
+  import { ValidationUtils, MongoUtils, getErrorMessage, getErrorStack } from '@shared/utils';
   
   /**
    * Controlador para gestión de préstamos vencidos
@@ -45,8 +45,8 @@ import {
       @Query('personId') personId?: string,
       @Query('personType') personType?: 'student' | 'teacher',
       @Query('minDaysOverdue') minDaysOverdue?: string,
-      @Query('dueDateFrom') dueDateFrom?: string,
-      @Query('dueDateTo') dueDateTo?: string,
+      @Query('dateFrom') dateFrom?: string,
+      @Query('dateTo') dateTo?: string,
       @Query('grade') grade?: string,
       @Query('sortBy') sortBy?: string,
       @Query('sortOrder') sortOrder?: 'asc' | 'desc',
@@ -78,12 +78,12 @@ import {
           }
         }
   
-        if (dueDateFrom && ValidationUtils.isNotEmpty(dueDateFrom)) {
-          searchDto.dueDateFrom = dueDateFrom;
+        if (dateFrom && ValidationUtils.isNotEmpty(dateFrom)) {
+          searchDto.dateFrom = dateFrom;
         }
   
-        if (dueDateTo && ValidationUtils.isNotEmpty(dueDateTo)) {
-          searchDto.dueDateTo = dueDateTo;
+        if (dateTo && ValidationUtils.isNotEmpty(dateTo)) {
+          searchDto.dateTo = dateTo;
         }
   
         if (grade && ValidationUtils.isNotEmpty(grade)) {
@@ -92,11 +92,14 @@ import {
   
         this.logger.debug('Finding overdue loans with filters:', searchDto);
   
-        const result = await this.overdueService.findOverdueLoans(searchDto);
+        const result = await this.overdueService.findOverdueLoans(searchDto.page, searchDto.limit);
   
         return ApiResponseDto.success(result, 'Préstamos vencidos obtenidos exitosamente', HttpStatus.OK);
       } catch (error) {
-        this.logger.error('Error finding overdue loans', error);
+        this.logger.error('Error finding overdue loans', {
+          error: getErrorMessage(error),
+          stack: getErrorStack(error)
+        });
         throw error;
       }
     }
@@ -119,19 +122,19 @@ import {
     }
   
     /**
-     * Actualizar estados de préstamos vencidos
+     * Actualizar estados de préstamos vencidos manualmente
      * POST /api/overdue/update-statuses
      */
     @Post('update-statuses')
     @HttpCode(HttpStatus.OK)
     async updateOverdueStatuses(): Promise<ApiResponseDto<{ updatedCount: number }>> {
       try {
-        this.logger.log('Updating overdue loan statuses');
+        this.logger.debug('Manually updating overdue statuses');
         const result = await this.overdueService.updateOverdueStatuses();
   
         return ApiResponseDto.success(
           result, 
-          `${result.updatedCount} préstamos actualizados a estado vencido`, 
+          `Se actualizaron ${result.updatedCount} préstamos a estado vencido`, 
           HttpStatus.OK
         );
       } catch (error) {
@@ -147,7 +150,7 @@ import {
     @Get('near-due')
     async findLoansNearDue(
       @Query('days') days: string = '3',
-    ): Promise<ApiResponseDto<LoanResponseDto[]>> {
+    ): Promise<ApiResponseDto<OverdueResponseDto[]>> {
       try {
         const daysUntilDue = Math.min(parseInt(days, 10) || 3, 30); // Máximo 30 días
   

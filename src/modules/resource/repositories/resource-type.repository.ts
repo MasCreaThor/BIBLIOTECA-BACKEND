@@ -23,10 +23,24 @@ export class ResourceTypeRepository extends BaseRepositoryImpl<ResourceTypeDocum
   }
 
   /**
+   * Buscar tipo de recurso por nombre incluyendo inactivos
+   */
+  async findByNameIncludeInactive(name: string): Promise<ResourceTypeDocument | null> {
+    return this.resourceTypeModel.findOne({ name: name.toLowerCase() }).exec();
+  }
+
+  /**
    * Buscar todos los tipos activos
    */
   async findAllActive(): Promise<ResourceTypeDocument[]> {
     return this.resourceTypeModel.find({ active: true }).sort({ name: 1 }).exec();
+  }
+
+  /**
+   * Buscar todos los tipos de recursos (activos e inactivos)
+   */
+  async findAll(): Promise<ResourceTypeDocument[]> {
+    return this.resourceTypeModel.find().sort({ name: 1 }).exec();
   }
 
   /**
@@ -81,5 +95,21 @@ export class ResourceTypeRepository extends BaseRepositoryImpl<ResourceTypeDocum
    */
   async getBibleType(): Promise<ResourceTypeDocument | null> {
     return this.findByName('bible');
+  }
+
+  /**
+   * Buscar y actualizar o crear (upsert)
+   */
+  async findOneAndUpdate(
+    filter: any,
+    update: any,
+    options: any = {}
+  ): Promise<ResourceTypeDocument | null> {
+    const result = await this.resourceTypeModel.findOneAndUpdate(filter, update, options).exec();
+    // Mongoose 6+ puede devolver ModifyResult, que tiene .value
+    if (result && typeof result === 'object' && 'value' in result) {
+      return (result as any).value as ResourceTypeDocument | null;
+    }
+    return result as ResourceTypeDocument | null;
   }
 }

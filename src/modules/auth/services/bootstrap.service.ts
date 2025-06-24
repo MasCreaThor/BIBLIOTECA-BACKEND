@@ -1,182 +1,72 @@
-// src/services/bootstrap.service.ts
-import { 
-    Injectable, 
-    ConflictException, 
-    BadRequestException 
-  } from '@nestjs/common';
-  import { ConfigService } from '@nestjs/config';
-  import { UserRepository } from '@modules/user/repositories';
-  import { PersonTypeRepository } from '@modules/person/repositories';
-  import { PasswordService } from '@shared/services';
-  import { LoggerService } from '@shared/services/logger.service';
-  
-  interface AdminCredentials {
-    email: string;
-    password: string;
+// src/modules/auth/services/bootstrap.service.ts
+import { Injectable } from '@nestjs/common';
+import { UserRepository } from '@modules/user/repositories';
+import { LoggerService } from '@shared/services/logger.service';
+
+/**
+ * Servicio para migración de usuarios existentes
+ */
+@Injectable()
+export class BootstrapService {
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly logger: LoggerService,
+  ) {
+    this.logger.setContext('BootstrapService');
   }
-  
-  interface BootstrapStatus {
-    needsBootstrap: boolean;
-    hasAdmin: boolean;
-    hasPersonTypes: boolean;
-    totalUsers: number;
-    systemInitialized: boolean;
-  }
-  
+
   /**
-   * Servicio para inicialización segura del sistema
+   * Actualizar usuarios existentes con campos firstName y lastName
    */
-  @Injectable()
-  export class BootstrapService {
-    constructor(
-      private readonly userRepository: UserRepository,
-      private readonly personTypeRepository: PersonTypeRepository,
-      private readonly passwordService: PasswordService,
-      private readonly configService: ConfigService,
-      private readonly logger: LoggerService,
-    ) {
-      this.logger.setContext('BootstrapService');
-    }
-  
-    /**
-     * Verificar si el sistema necesita inicialización
-     */
-    async needsBootstrap(): Promise<boolean> {
-      const hasAdmin = await this.userRepository.hasAdminUser();
-      return !hasAdmin;
-    }
-  
-    /**
-     * Obtener estado completo de inicialización
-     */
-    async getBootstrapStatus(): Promise<BootstrapStatus> {
-      const [hasAdmin, hasPersonTypes, totalUsers] = await Promise.all([
-        this.userRepository.hasAdminUser(),
-        this.hasPersonTypes(),
-        this.userRepository.count({}),
-      ]);
-  
-      return {
-        needsBootstrap: !hasAdmin,
-        hasAdmin,
-        hasPersonTypes,
-        totalUsers,
-        systemInitialized: hasAdmin && hasPersonTypes,
-      };
-    }
-  
-    /**
-     * Crear el primer administrador del sistema
-     */
-    async createFirstAdmin(credentials: AdminCredentials): Promise<{
-      message: string;
-      adminEmail: string;
-    }> {
-      const { email, password } = credentials;
-  
-      try {
-        // Verificar que el sistema necesite inicialización
-        const needsBootstrap = await this.needsBootstrap();
-        if (!needsBootstrap) {
-          throw new BadRequestException('El sistema ya está inicializado');
+  async updateExistingUsers(): Promise<void> {
+    try {
+      this.logger.log('Iniciando actualización de usuarios existentes...');
+
+      // Obtener todos los usuarios
+      const users = await this.userRepository.findAll();
+      
+      let updatedCount = 0;
+
+      for (const user of users) {
+        // Verificar si el usuario ya tiene firstName y lastName
+        if (!user.firstName || !user.lastName) {
+          // Extraer nombre del email como fallback
+          const emailParts = user.email.split('@')[0].split('.');
+          const firstName = emailParts[0] || 'Usuario';
+          const lastName = emailParts[1] || 'Sistema';
+
+          // Actualizar usuario
+          await this.userRepository.update((user._id as any).toString(), {
+            firstName: firstName.charAt(0).toUpperCase() + firstName.slice(1),
+            lastName: lastName.charAt(0).toUpperCase() + lastName.slice(1),
+          });
+
+          updatedCount++;
+          this.logger.log(`Usuario actualizado: ${user.email} -> ${firstName} ${lastName}`);
         }
-  
-        // Verificar si el email ya existe (por seguridad extra)
-        const existingUser = await this.userRepository.findByEmail(email);
-        if (existingUser) {
-          throw new ConflictException('El email ya está registrado');
-        }
-  
-        // Validar fortaleza de la contraseña
-        const passwordValidation = this.passwordService.validatePasswordStrength(password);
-        if (!passwordValidation.isValid) {
-          throw new BadRequestException(
-            `La contraseña no cumple los requisitos:\n${passwordValidation.errors.join('\n')}`
-          );
-        }
-  
-        // Crear tipos de persona si no existen
-        await this.ensurePersonTypes();
-  
-        // Encriptar contraseña
-        const hashedPassword = await this.passwordService.hashPassword(password);
-  
-        // Crear administrador
-        const adminData = {
-          email: email.toLowerCase().trim(),
-          password: hashedPassword,
-          role: 'admin' as const,
-          active: true,
-        };
-  
-        await this.userRepository.create(adminData);
-  
-        this.logger.log(`First admin user created via CLI: ${email}`);
-  
-        return {
-          message: 'Primer administrador creado exitosamente',
-          adminEmail: email,
-        };
-  
-      } catch (error) {
-        if (
-          error instanceof ConflictException ||
-          error instanceof BadRequestException
-        ) {
-          throw error;
-        }
-  
-        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-        this.logger.error(`Error creating first admin: ${email}`, error);
-        throw new BadRequestException('Error al crear el administrador');
       }
-    }
-  
-    /**
-     * Verificar si un email ya está registrado
-     */
-    async isEmailTaken(email: string): Promise<boolean> {
-      const existingUser = await this.userRepository.findByEmail(email);
-      return !!existingUser;
-    }
-  
-    /**
-     * Validar fortaleza de contraseña
-     */
-    validatePassword(password: string): { isValid: boolean; errors: string[] } {
-      return this.passwordService.validatePasswordStrength(password);
-    }
-  
-    /**
-     * Verificar si existen los tipos de persona básicos
-     */
-    private async hasPersonTypes(): Promise<boolean> {
-      const personTypes = await this.personTypeRepository.findAllActive();
-      return personTypes.length >= 2; // student y teacher
-    }
-  
-    /**
-     * Asegurar que existan los tipos de persona básicos
-     */
-    private async ensurePersonTypes(): Promise<void> {
-      const studentType = await this.personTypeRepository.findByName('student');
-      if (!studentType) {
-        await this.personTypeRepository.create({
-          name: 'student',
-          description: 'Estudiante de la institución educativa',
-          active: true,
-        });
-        this.logger.log('Student person type created');
-      }
-  
-      const teacherType = await this.personTypeRepository.findByName('teacher');
-      if (!teacherType) {
-        await this.personTypeRepository.create({
-          name: 'teacher',
-          description: 'Docente de la institución educativa',
-          active: true,
-        });
-        this.logger.log('Teacher person type created');
-      }
+
+      this.logger.log(`Actualización completada. ${updatedCount} usuarios actualizados.`);
+    } catch (error) {
+      this.logger.error('Error actualizando usuarios existentes:', error);
+      throw error;
     }
   }
+
+  /**
+   * Actualizar un usuario específico con firstName y lastName
+   */
+  async updateUserWithNames(userId: string, firstName: string, lastName: string): Promise<void> {
+    try {
+      await this.userRepository.update(userId, {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      });
+      
+      this.logger.log(`Usuario ${userId} actualizado con nombres: ${firstName} ${lastName}`);
+    } catch (error) {
+      this.logger.error(`Error actualizando usuario ${userId}:`, error);
+      throw error;
+    }
+  }
+}
