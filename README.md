@@ -114,11 +114,6 @@ GOOGLE_BOOKS_API_KEY=tu_api_key_de_google_books
 Asegúrate de que MongoDB esté ejecutándose:
 
 ```bash
-# En macOS con Homebrew
-brew services start mongodb-community
-
-# En Linux
-sudo systemctl start mongod
 
 # En Windows
 net start MongoDB
@@ -206,12 +201,6 @@ npm run admin:init
 npm run start:dev          # Modo desarrollo con watch
 npm run start:debug        # Modo debug
 
-# Testing
-npm run test               # Pruebas unitarias
-npm run test:watch         # Pruebas en modo watch
-npm run test:cov           # Cobertura de pruebas
-npm run test:e2e           # Pruebas end-to-end
-
 # Calidad de código
 npm run lint               # Ejecutar linter
 npm run format             # Formatear código
@@ -263,16 +252,6 @@ this.logger.error('Error en operación', error.stack);
 this.logger.warn('Advertencia');
 ```
 
-## 🧪 Testing
-
-### Estructura de Pruebas
-
-```markdown
-test/
-└── unit/              # Pruebas unitarias
-
-```
-
 ### Ejecutar Pruebas
 
 ```bash
@@ -286,39 +265,11 @@ npm test -- --testNamePattern="Usuario"
 npm run test:cov
 ```
 
-## 📚 Módulos del Sistema
-
-### ✅ Completados
-
-- [x] Configuración base del proyecto
-- [x] Arquitectura en capas
-- [x] Autenticación JWT
-- [x] Guards y middlewares
-- [x] Logging y manejo de errores
-
-### 🚧 En Desarrollo
-
-- [ ] Gestión de usuarios y personas
-- [ ] Gestión de inventario
-- [ ] Sistema de préstamos
-- [ ] Integración con Google Books
-- [ ] Búsqueda y filtrado
-- [ ] Informes y estadísticas
-
-### 📋 Planificado
-
-- [ ] Notificaciones automáticas
-- [ ] Dashboard administrativo
-- [ ] API documentación (Swagger)
-- [ ] Backup automático
-- [ ] Cache con Redis
-
 ### Convenciones de Código
 
 - **TypeScript**: Tipado estricto
 - **ESLint + Prettier**: Estilo de código consistente
 - **Commits**: Mensajes descriptivos
-- **Tests**: Cobertura mínima del 80%
 
 ## 📞 Soporte
 
