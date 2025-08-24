@@ -6,11 +6,13 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '@shared/services/logger.service';
 import { LoanSeedService } from '@modules/loan/seeds/loan-seed.service';
+import { ResourceSeedService } from '@modules/resource/seeds/resource-seed.service';
 
 @Injectable()
 export class AppInitializationService implements OnModuleInit {
   constructor(
     private readonly loanSeedService: LoanSeedService,
+    private readonly resourceSeedService: ResourceSeedService,
     private readonly configService: ConfigService,
     private readonly logger: LoggerService,
   ) {
@@ -32,8 +34,12 @@ export class AppInitializationService implements OnModuleInit {
     this.logger.log('🚀 Starting automatic system initialization...');
 
     try {
-      // Solo inicializar sistema de préstamos (estados de préstamos)
+      // Inicializar sistema de préstamos (estados de préstamos)
       await this.initializeLoanSystem();
+      
+      // Inicializar sistema de recursos (tipos y estados de recursos)
+      await this.initializeResourceSystem();
+      
       this.logger.log('✅ System initialization completed successfully');
     } catch (error) {
       this.logger.error('❌ Error during system initialization:', error);
@@ -66,6 +72,35 @@ export class AppInitializationService implements OnModuleInit {
 
     } catch (error) {
       this.logger.error('❌ Error initializing loan system:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Inicializar sistema de recursos
+   */
+  private async initializeResourceSystem(): Promise<void> {
+    this.logger.log('🔧 Initializing resource system...');
+
+    try {
+      // Verificar integridad de tipos y estados de recursos
+      const integrity = await this.resourceSeedService.verifyResourceTypesAndStatesIntegrity();
+
+      if (integrity.hasResourceTypes && integrity.hasResourceStates) {
+        this.logger.log(`✅ Resource types already exist (${integrity.resourceTypesCount} types)`);
+        this.logger.log(`✅ Resource states already exist (${integrity.resourceStatesCount} states)`);
+        return;
+      }
+
+      this.logger.log('📦 Creating resource types and states...');
+      await this.resourceSeedService.seedResourceTypesAndStates();
+      
+      // Verificar creación
+      const newIntegrity = await this.resourceSeedService.verifyResourceTypesAndStatesIntegrity();
+      this.logger.log(`✅ Resource system initialized with ${newIntegrity.resourceTypesCount} types and ${newIntegrity.resourceStatesCount} states`);
+
+    } catch (error) {
+      this.logger.error('❌ Error initializing resource system:', error);
       throw error;
     }
   }

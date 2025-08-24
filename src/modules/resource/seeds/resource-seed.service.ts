@@ -44,6 +44,23 @@ export class ResourceSeedService {
   }
 
   /**
+   * Ejecutar solo tipos y estados de recursos (para inicialización automática)
+   */
+  async seedResourceTypesAndStates(): Promise<void> {
+    this.logger.log('Starting resource types and states seeding...');
+
+    try {
+      await this.seedResourceTypes();
+      await this.seedResourceStates();
+
+      this.logger.log('Resource types and states seeding completed successfully');
+    } catch (error) {
+      this.logger.error('Error during resource types and states seeding', error);
+      throw error;
+    }
+  }
+
+  /**
    * Sembrar tipos de recursos iniciales
    */
   private async seedResourceTypes(): Promise<void> {
@@ -359,6 +376,28 @@ export class ResourceSeedService {
       resourceStatesCount: resourceStates.length,
       categoriesCount: categories.length,
       locationsCount: locations.length,
+    };
+  }
+
+  /**
+   * Verificar integridad de tipos y estados de recursos (para inicialización automática)
+   */
+  async verifyResourceTypesAndStatesIntegrity(): Promise<{
+    hasResourceTypes: boolean;
+    hasResourceStates: boolean;
+    resourceTypesCount: number;
+    resourceStatesCount: number;
+  }> {
+    const [resourceTypes, resourceStates] = await Promise.all([
+      this.resourceTypeRepository.findAllActive(),
+      this.resourceStateRepository.findAllActive(),
+    ]);
+
+    return {
+      hasResourceTypes: resourceTypes.length >= 4, // book, game, map, bible
+      hasResourceStates: resourceStates.length >= 4, // good, deteriorated, damaged, lost
+      resourceTypesCount: resourceTypes.length,
+      resourceStatesCount: resourceStates.length,
     };
   }
 
